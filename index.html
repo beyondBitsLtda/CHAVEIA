@@ -11,6 +11,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 </style>
 <style>
 *{box-sizing:border-box;}
@@ -450,44 +452,13 @@ input:focus{outline:none;}
               <span style="font-size:11.5px;color:#8b97a5;">Clique num território marcado com ⚔ para atacar</span>
               <button onclick="{{ onOpenCardsModal }}" style="display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:9px;background:linear-gradient(135deg,#f4d772,#a8801f);border:1px solid #d4b04a;color:#2a1a00;font-size:12.5px;font-weight:800;font-family:'Space Grotesk';cursor:pointer;box-shadow:0 4px 12px rgba(212,176,74,.28);" style-hover="filter:brightness(1.08);">🎴 Cartas <span style="padding:1px 7px;border-radius:99px;background:rgba(0,0,0,.35);color:#fff;font-family:'JetBrains Mono',monospace;font-size:11px;">{{ cqCardsUnusedCount }}/{{ cqCardsTotalCount }}</span></button>
             </div>
-            <div style="position:relative;width:100%;background:radial-gradient(ellipse at 30% 20%,#0d2338,#08121c 60%);border:1px solid #1e2733;border-radius:12px;overflow:hidden;">
-              <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;display:block;">
-                <defs>
-                  <pattern id="cqGrid" width="40" height="40" patternUnits="userSpaceOnUse">
-                    <path d="M40 0H0V40" fill="none" stroke="#12202f" stroke-width=".5"/>
-                  </pattern>
-                  <radialGradient id="cqOcean" cx="50%" cy="40%" r="70%">
-                    <stop offset="0%" stop-color="#0e2438"/>
-                    <stop offset="100%" stop-color="#050b13"/>
-                  </radialGradient>
-                </defs>
-                <rect width="1000" height="500" fill="url(#cqOcean)"/>
-                <rect width="1000" height="500" fill="url(#cqGrid)"/>
-                <g stroke="rgba(160,190,220,.14)" stroke-width="1" stroke-dasharray="3 5">
-                  <sc-for list="{{ cqMapEdges }}" as="e" hint-placeholder-count="12">
-                    <line x1="{{ e.x1 }}" y1="{{ e.y1 }}" x2="{{ e.x2 }}" y2="{{ e.y2 }}"></line>
-                  </sc-for>
-                </g>
-                <g>
-                  <sc-for list="{{ cqTerritories }}" as="t" hint-placeholder-count="32">
-                    <g onclick="{{ t.onClick }}" style="cursor:{{ t.cursor }};filter:{{ t.glow }};">
-                      <path d="{{ t.path }}" fill="{{ t.color }}" fill-opacity="{{ t.opacity }}" stroke="{{ t.stroke }}" stroke-width="{{ t.strokeWidth }}" stroke-linejoin="round"></path>
-                      <text x="{{ t.x }}" y="{{ t.areaLabelY }}" text-anchor="middle" font-family="Space Grotesk" font-size="8.5" font-weight="500" fill="rgba(255,255,255,.75)" stroke="rgba(0,0,0,.55)" stroke-width=".25" paint-order="stroke">{{ t.areaName }}</text>
-                      <text x="{{ t.x }}" y="{{ t.teamLabelY }}" text-anchor="middle" font-family="Space Grotesk" font-size="11" font-weight="800" fill="#fff" stroke="rgba(0,0,0,.7)" stroke-width=".5" paint-order="stroke">{{ t.name }}</text>
-                      <sc-if value="{{ t.hasBadge }}" hint-placeholder-val="{{ false }}">
-                        <text x="{{ t.x }}" y="{{ t.teamLabelY }}" text-anchor="middle" dominant-baseline="central" font-family="Space Grotesk" font-size="9" font-weight="900" fill="#fff" dy="14" stroke="rgba(0,0,0,.6)" stroke-width=".4" paint-order="stroke">{{ t.badge }}</text>
-                      </sc-if>
-                    </g>
-                  </sc-for>
-                </g>
-              </svg>
-            </div>
+            <x-import component-from-global-scope="CqMap3D" from="./cq-map-3d.jsx" territories="{{ cqTerritories }}" hint-size="100%,520px"></x-import>
             <div style="margin-top:12px;font-size:11px;color:#7f8b99;line-height:1.5;">
-              Territórios inimigos de fronteira ao seu domínio podem ser atacados. Linhas pontilhadas mostram as conexões entre vizinhos.
+              Arraste para girar o mapa, use a roda do mouse para aproximar. Só é possível atacar territórios inimigos que fazem fronteira com você (marcados com ⚔).
             </div>
           </div>
 
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
 
             <div style="background:#0c121a;border:1px solid #1e2733;border-radius:13px;padding:14px;">
               <div style="font-family:'Space Grotesk';font-weight:700;font-size:14px;margin-bottom:10px;">⚔️ Ataques disponíveis</div>
@@ -508,30 +479,6 @@ input:focus{outline:none;}
             </div>
 
             <div style="background:#0c121a;border:1px solid #1e2733;border-radius:13px;padding:14px;">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-                <div style="font-family:'Space Grotesk';font-weight:700;font-size:14px;">👥 Meu elenco</div>
-                <div style="flex:1;"></div>
-                <span style="font-size:11px;color:#7f8b99;">{{ cqMyRosterCount }} jog.</span>
-                <button onclick="{{ onCqAddPlayer }}" style="padding:5px 10px;border-radius:7px;background:{{ accent }};border:none;color:#04140b;font-size:11px;font-weight:700;cursor:pointer;font-family:'Space Grotesk';" style-hover="filter:brightness(1.1);">+ Add</button>
-              </div>
-              <sc-if value="{{ cqMyRosterEmpty }}" hint-placeholder-val="{{ true }}">
-                <div style="font-size:11.5px;color:#7f8b99;padding:10px 12px;background:#141c26;border:1px dashed #26313f;border-radius:8px;line-height:1.5;">
-                  Cadastre os jogadores do seu clube no EA FC 26.
-                </div>
-              </sc-if>
-              <div style="display:flex;flex-direction:column;gap:4px;max-height:260px;overflow-y:auto;padding-right:4px;margin-top:6px;">
-                <sc-for list="{{ cqMyRoster }}" as="p" hint-placeholder-count="6">
-                  <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:#141c26;border-radius:7px;">
-                    <span style="{{ p.posStyle }}">{{ p.pos }}</span>
-                    <span style="flex:1;font-size:12px;color:#cdd6df;font-weight:500;">{{ p.name }}</span>
-                    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:{{ accent }};font-weight:700;">{{ p.rating }}</span>
-                    <button onclick="{{ p.onRemove }}" style="width:20px;height:20px;border-radius:5px;background:#182029;border:1px solid #26313f;color:#8b97a5;font-size:12px;line-height:1;cursor:pointer;" title="Remover">×</button>
-                  </div>
-                </sc-for>
-              </div>
-            </div>
-
-            <div style="background:#0c121a;border:1px solid #1e2733;border-radius:13px;padding:14px;">
               <div style="font-family:'Space Grotesk';font-weight:700;font-size:14px;margin-bottom:10px;">📜 Histórico</div>
               <sc-if value="{{ cqHasLog }}" hint-placeholder-val="{{ true }}">
                 <div style="display:flex;flex-direction:column;gap:5px;max-height:260px;overflow-y:auto;font-size:11.5px;color:#8b97a5;line-height:1.45;">
@@ -545,6 +492,58 @@ input:focus{outline:none;}
               </sc-if>
             </div>
 
+          </div>
+
+          <div style="background:#0c121a;border:1px solid #1e2733;border-radius:13px;padding:16px;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+              <div style="font-family:'Space Grotesk';font-weight:800;font-size:16px;">⭐ Meu elenco</div>
+              <span style="padding:3px 9px;border-radius:99px;background:#141c26;border:1px solid #263140;font-size:11px;color:#8b97a5;">{{ cqMyRosterCount }} jogadores</span>
+              <div style="flex:1;"></div>
+              <button onclick="{{ onCqAddPlayer }}" style="display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:9px;background:linear-gradient(135deg,#f4d772,#a8801f);border:1px solid #d4b04a;color:#2a1a00;font-size:12.5px;font-weight:800;font-family:'Space Grotesk';cursor:pointer;box-shadow:0 4px 12px rgba(212,176,74,.28);" style-hover="filter:brightness(1.08);">+ Cadastrar jogador</button>
+            </div>
+            <sc-if value="{{ cqMyRosterEmpty }}" hint-placeholder-val="{{ true }}">
+              <div style="font-size:12.5px;color:#7f8b99;padding:26px 20px;text-align:center;background:#0a1120;border:1px dashed #26313f;border-radius:12px;line-height:1.6;">
+                Nenhum jogador ainda. Cadastre o elenco do seu clube no EA FC 26 — cada um vira uma cartinha. Jogadores roubados em conquistas aparecem aqui automaticamente.
+              </div>
+            </sc-if>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:16px;">
+              <sc-for list="{{ cqMyRoster }}" as="p" hint-placeholder-count="5">
+                <div style="position:relative;width:100%;aspect-ratio:5/7.1;filter:drop-shadow(0 10px 22px rgba(0,0,0,.55));" style-hover="transform:translateY(-5px);transition:transform .18s;">
+                  <div style="{{ p.borderStyle }}"></div>
+                  <div style="{{ p.innerStyle }}">
+                    <div style="{{ p.shineStyle }}"></div>
+                    <div style="position:relative;display:flex;flex-direction:column;height:100%;">
+                      <div style="display:flex;align-items:flex-start;">
+                        <div style="display:flex;flex-direction:column;align-items:center;line-height:1;">
+                          <span style="font-family:'Space Grotesk';font-weight:900;font-size:30px;color:{{ p.gold }};text-shadow:0 1px 3px rgba(0,0,0,.5);">{{ p.rating }}</span>
+                          <span style="font-family:'Space Grotesk';font-weight:800;font-size:11px;letter-spacing:1px;color:{{ p.gold }};margin-top:1px;">{{ p.pos }}</span>
+                          <span style="width:20px;height:2px;background:{{ p.gold }};opacity:.55;margin-top:4px;"></span>
+                          <span style="font-size:16px;margin-top:4px;">{{ p.flag }}</span>
+                        </div>
+                        <div style="flex:1;display:flex;align-items:flex-start;justify-content:center;">
+                          <span style="font-family:'Space Grotesk';font-weight:900;font-size:54px;line-height:.85;color:{{ p.gold }};opacity:.16;margin-top:-2px;">{{ p.initial }}</span>
+                        </div>
+                        <button onclick="{{ p.onRemove }}" style="position:absolute;top:-2px;right:-2px;width:20px;height:20px;border-radius:6px;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.18);color:{{ p.gold }};font-size:12px;line-height:1;cursor:pointer;" title="Remover">×</button>
+                      </div>
+                      <sc-if value="{{ p.stolen }}" hint-placeholder-val="{{ false }}">
+                        <div style="align-self:flex-start;margin-top:5px;padding:2px 7px;border-radius:5px;background:rgba(224,69,75,.22);border:1px solid rgba(224,69,75,.6);color:#ff9ea2;font-size:8.5px;font-weight:800;letter-spacing:.8px;font-family:'Space Grotesk';">⚔ ROUBADO</div>
+                      </sc-if>
+                      <div style="flex:1;"></div>
+                      <div style="text-align:center;font-family:'Space Grotesk';font-weight:900;font-size:15px;letter-spacing:.5px;text-transform:uppercase;color:{{ p.gold }};text-shadow:0 1px 2px rgba(0,0,0,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ p.name }}</div>
+                      <div style="height:1px;background:linear-gradient(90deg,transparent,{{ p.gold }},transparent);opacity:.5;margin:5px 0 6px;"></div>
+                      <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 10px;padding:0 4px 2px;">
+                        <sc-for list="{{ p.stats }}" as="s" hint-placeholder-count="6">
+                          <div style="display:flex;align-items:center;gap:5px;">
+                            <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;color:{{ p.gold }};min-width:20px;">{{ s.v }}</span>
+                            <span style="font-family:'Space Grotesk';font-weight:700;font-size:9.5px;letter-spacing:.5px;color:{{ p.goldDim }};">{{ s.k }}</span>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
           </div>
         </div>
 
@@ -1320,7 +1319,7 @@ class Component extends DCLogic {
   setWiz(patch) { this.setState(s => ({ wizard: { ...s.wizard, ...patch } })); }
   setWizConfig(patch) { this.setState(s => ({ wizard: { ...s.wizard, config: { ...s.wizard.config, ...patch } } })); }
   setWizCount(n) {
-    n = Math.max(2, Math.min(64, n | 0));
+    n = Math.max(2, Math.min(125, n | 0));
     this.setState(s => {
       const teams = s.wizard.teams.slice(0, n);
       while (teams.length < n) teams.push({ name: '' });
@@ -1718,28 +1717,37 @@ class Component extends DCLogic {
         }
       }
       out.cqMapEdges = edges;
+      // Tint each team color toward a warm terrain tan for the topographic look
+      const tintTerrain = (hex) => {
+        const h = hex.replace('#','');
+        const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
+        // mix 55% team color + 45% warm sand (#e8c583)
+        const mr = Math.round(r*0.55 + 232*0.45);
+        const mg = Math.round(g*0.55 + 197*0.45);
+        const mb = Math.round(b*0.55 + 131*0.45);
+        return '#' + [mr,mg,mb].map(v=>v.toString(16).padStart(2,'0')).join('');
+      };
       out.cqTerritories = cq.territories.map(t => {
         const isMine = t.ownerTeamId === cq.myTeamId;
         const attackable = !isMine && (adj[t.pos] || []).some(n => cq.territories[n].ownerTeamId === cq.myTeamId);
         const ownerColor = isMine ? myColor : this.cqColorForTeam(t.ownerTeamId);
         const wmi = wm[t.pos % wm.length];
-        const teamName = this.teamName(t.teamId);
-        const shortName = teamName.length > 12 ? teamName.slice(0, 11) + '…' : teamName;
+        // Show CURRENT owner's team name on the map
+        const ownerName = this.teamName(t.ownerTeamId);
+        const shortName = ownerName.length > 13 ? ownerName.slice(0, 12) + '…' : ownerName;
         return {
           pos: t.pos,
           x: wmi.x,
           y: wmi.y,
           path: wmi.path,
-          areaLabelY: wmi.y - 8,
-          teamLabelY: wmi.y + 8,
-          areaName: wmi.name,
+          teamLabelY: wmi.y + 4,
+          badgeY: wmi.y + 20,
           name: shortName,
-          color: ownerColor,
+          color: tintTerrain(ownerColor),
+          shadowColor: '#3a2a12',
           isMine, attackable,
-          textColor: '#fff',
-          stroke: isMine ? '#ffffff' : (attackable ? accent : 'rgba(0,0,0,.55)'),
-          strokeWidth: (isMine || attackable) ? 3 : 1.4,
-          opacity: 0.9,
+          stroke: isMine ? '#ffffff' : (attackable ? accent : 'rgba(60,40,15,.55)'),
+          strokeWidth: (isMine || attackable) ? 3 : 1.2,
           glow: attackable ? ('drop-shadow(0 0 8px ' + accent + ')') : (isMine ? ('drop-shadow(0 0 6px ' + myColor + ')') : 'none'),
           cursor: attackable ? 'pointer' : 'default',
           onClick: attackable ? () => this.cqOpenAttack(t.pos) : () => {},
@@ -1748,24 +1756,28 @@ class Component extends DCLogic {
         };
       });
 
-      // Attack list
+      // Attack list — frontier neighbors only, showing the defending team name
       const attacks = out.cqTerritories.filter(t => t.attackable).map(t => {
         const territory = cq.territories[t.pos];
-        return { pos: t.pos, name: territory.areaName + ' — ' + this.teamName(territory.teamId), color: t.color, onClick: () => this.cqOpenAttack(t.pos) };
+        return { pos: t.pos, name: this.teamName(territory.ownerTeamId), color: t.color, onClick: () => this.cqOpenAttack(t.pos) };
       });
       out.cqHasAttacks = attacks.length > 0;
       out.cqNoAttacks = attacks.length === 0;
       out.cqAttackList = attacks;
 
-      // Cards
+      // Cards — TOTS navy + gold styling (like FUT special cards)
+      const NAVY = 'linear-gradient(165deg,#0b1a3d 0%,#173876 45%,#0a1430 100%)';
+      const goldPat = 'radial-gradient(circle at 26% 16%,rgba(246,223,154,.22),transparent 46%),radial-gradient(circle at 80% 90%,rgba(88,180,214,.16),transparent 50%)';
+      const GOLD = '#f6df9a';
       const tierStyles = {
-        'gold-red':  { bg: 'linear-gradient(160deg,#ffd08a 0%,#e07a3f 45%,#c14a4a 100%)',   text: '#4a1010', accent: '#ffd08a', ring: '#ffb877', pattern: 'radial-gradient(circle at 20% 15%,rgba(255,255,255,.35),transparent 45%)' },
-        'gold':      { bg: 'linear-gradient(160deg,#fff1a5 0%,#f4d772 40%,#a8801f 100%)',   text: '#3a2a00', accent: '#fff1a5', ring: '#f4d772', pattern: 'radial-gradient(circle at 25% 20%,rgba(255,255,255,.45),transparent 50%)' },
-        'bronze':    { bg: 'linear-gradient(160deg,#f2c391 0%,#c78548 45%,#7a4820 100%)',   text: '#3a1f08', accent: '#f2c391', ring: '#c78548', pattern: 'radial-gradient(circle at 25% 20%,rgba(255,255,255,.32),transparent 50%)' },
-        'silver':    { bg: 'linear-gradient(160deg,#eef2f7 0%,#b8c1cc 40%,#5e6a78 100%)',   text: '#1c2530', accent: '#eef2f7', ring: '#c8d0da', pattern: 'radial-gradient(circle at 25% 20%,rgba(255,255,255,.5),transparent 50%)' },
-        'icon':      { bg: 'linear-gradient(160deg,#f6e6b8 0%,#c9a752 45%,#8a6c1e 100%)',   text: '#3a2a00', accent: '#fff9e0', ring: '#f6e6b8', pattern: 'radial-gradient(circle at 30% 20%,rgba(255,255,255,.4),transparent 50%)' },
-        'hero':      { bg: 'linear-gradient(160deg,#e3b8ff 0%,#8b3fd6 45%,#3d0f5e 100%)',   text: '#f5e8ff', accent: '#e3b8ff', ring: '#c88aff', pattern: 'radial-gradient(circle at 25% 20%,rgba(255,255,255,.35),transparent 50%)' },
+        'gold-red':  { bg: NAVY, text: GOLD, accent: GOLD, ring: '#f0b36a', pattern: goldPat },
+        'gold':      { bg: NAVY, text: GOLD, accent: GOLD, ring: '#f6df9a', pattern: goldPat },
+        'bronze':    { bg: 'linear-gradient(165deg,#0d1730 0%,#123058 45%,#0a1226 100%)', text: GOLD, accent: GOLD, ring: '#c9a86a', pattern: goldPat },
+        'silver':    { bg: 'linear-gradient(165deg,#0e1a34 0%,#20406e 45%,#0b1526 100%)', text: '#e6eefb', accent: '#e6eefb', ring: '#9fb6d6', pattern: goldPat },
+        'icon':      { bg: NAVY, text: GOLD, accent: '#fff6d8', ring: '#f6e6b8', pattern: goldPat },
+        'hero':      { bg: 'linear-gradient(165deg,#160b3d 0%,#3a2585 45%,#0f0a2e 100%)', text: '#f0e6ff', accent: '#e3b8ff', ring: '#c88aff', pattern: 'radial-gradient(circle at 26% 16%,rgba(227,184,255,.28),transparent 48%)' },
       };
+      const CHAMFER_C = 'polygon(6% 0,94% 0,100% 5%,100% 95%,94% 100%,6% 100%,0 95%,0 5%)';
       const cards = (cq.cards || []).map(c => {
         const ts = tierStyles[c.tier] || tierStyles.gold;
         return {
@@ -1781,10 +1793,10 @@ class Component extends DCLogic {
           textColor: ts.text,
           accentColor: ts.accent,
           ringColor: ts.ring,
-          cardStyle: 'position:relative;width:170px;height:250px;border-radius:16px;padding:14px 12px 12px;overflow:hidden;box-shadow:0 14px 32px rgba(0,0,0,.55),inset 0 0 40px rgba(255,255,255,.08),0 0 0 2px ' + ts.ring + '55;background:' + ts.bg + ';color:' + ts.text + ';font-family:"Space Grotesk";opacity:' + (c.used ? '.4' : '1') + ';filter:' + (c.used ? 'grayscale(.5)' : 'none') + ';transition:transform .15s;',
+          cardStyle: 'position:relative;width:170px;height:250px;padding:14px 12px 12px;overflow:hidden;clip-path:' + CHAMFER_C + ';box-shadow:0 14px 32px rgba(0,0,0,.6),0 0 0 2px ' + ts.ring + '88;background:linear-gradient(160deg,' + ts.ring + ',' + ts.ring + '55);color:' + ts.text + ';font-family:"Space Grotesk";opacity:' + (c.used ? '.4' : '1') + ';filter:' + (c.used ? 'grayscale(.5)' : 'none') + ';transition:transform .15s;',
           hoverStyle: c.used ? '' : 'transform:translateY(-4px);',
-          overlayStyle: 'position:absolute;inset:0;background:' + ts.pattern + ';pointer-events:none;',
-          shineStyle: 'position:absolute;top:0;left:-30%;width:60%;height:100%;background:linear-gradient(115deg,transparent 40%,rgba(255,255,255,.25) 50%,transparent 60%);pointer-events:none;',
+          overlayStyle: 'position:absolute;inset:2px;clip-path:' + CHAMFER_C + ';background:' + ts.bg + ';pointer-events:none;',
+          shineStyle: 'position:absolute;inset:2px;clip-path:' + CHAMFER_C + ';background:' + ts.pattern + ';pointer-events:none;',
         };
       });
       out.cqCards = cards;
@@ -1798,8 +1810,46 @@ class Component extends DCLogic {
         const colors = { GOL: '#e0b422', ZAG: '#4b7fe0', LAT: '#22a0e0', VOL: '#c145e0', MEI: '#22e0c0', ATA: '#e0454b' };
         return 'display:inline-block;padding:2px 6px;border-radius:4px;background:' + (colors[pos] || '#26313f') + '22;color:' + (colors[pos] || '#8b97a5') + ';font-size:10px;font-weight:700;font-family:"Space Grotesk";min-width:34px;text-align:center;';
       };
+      // Roster — FUT-style player cards (navy + gold TOTS look)
+      const CHAMFER = 'polygon(7% 0,93% 0,100% 5%,100% 94%,93% 100%,7% 100%,0 94%,0 6%)';
+      // Deterministic 6-stat block derived from rating + position, FIFA-style
+      const statsFor = (name, pos, rating) => {
+        let h = 0; for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffff;
+        const j = (k) => ((Math.sin(h * 0.13 + k * 2.7) * 0.5 + 0.5) * 16 - 8) | 0; // -8..+8
+        const cl = v => Math.max(24, Math.min(99, v));
+        const r = rating;
+        // position weighting: [RIT, FIN, PAS, DRI, DEF, FIS]
+        const W = {
+          GOL: [r-10, r-30, r-8, r-18, r+4, r+2], ZAG: [r-4, r-22, r-8, r-14, r+7, r+6],
+          LAT: [r+6, r-14, r+2, r+2, r+2, r+2], VOL: [r-2, r-10, r+4, r, r+4, r+4],
+          MEI: [r+2, r-2, r+7, r+6, r-8, r-2], ATA: [r+7, r+8, r-2, r+6, r-18, r+2],
+        }[pos] || [r, r-4, r, r, r-6, r];
+        const K = ['RIT','FIN','PAS','DRI','DEF','FÍS'];
+        return K.map((k, i) => ({ k, v: cl(W[i] + j(i)) }));
+      };
+      const flags = ['🇧🇷','🇦🇷','🇵🇹','🇪🇸','🇫🇷','🇩🇪','🇮🇹','🇬🇧','🇳🇱','🇧🇪'];
+      const flagFor = (name) => { let h = 0; for (let i = 0; i < name.length; i++) h += name.charCodeAt(i); return flags[h % flags.length]; };
       const myRoster = (cq.rosters[cq.myTeamId] || []).slice().sort((a, b) => b.rating - a.rating);
-      out.cqMyRoster = myRoster.map(p => ({ id: p.id, name: p.name, pos: p.pos, rating: p.rating, posStyle: posStyle(p.pos), onRemove: () => this.cqRemoveMyPlayer(p.id) }));
+      out.cqMyRoster = myRoster.map(p => {
+        const stolen = p.origin === 'steal';
+        const gold = '#f6df9a', goldDim = '#c9a94e';
+        // navy vs steal (crimson) palette
+        const borderGrad = stolen
+          ? 'linear-gradient(150deg,#f6df9a,#8a5a24 55%,#f6df9a)'
+          : 'linear-gradient(150deg,#f8e6a6,#9b7a2a 50%,#f2d886)';
+        const innerGrad = stolen
+          ? 'linear-gradient(165deg,#2a0d16 0%,#4a1526 45%,#1a0810 100%)'
+          : 'linear-gradient(165deg,#0b1a3d 0%,#173876 45%,#0a1430 100%)';
+        return {
+          id: p.id, name: p.name, pos: p.pos, rating: p.rating, stolen,
+          gold, goldDim, flag: flagFor(p.name), initial: (p.name || '?').trim().charAt(0).toUpperCase(),
+          stats: statsFor(p.name, p.pos, p.rating),
+          borderStyle: 'position:absolute;inset:0;background:' + borderGrad + ';clip-path:' + CHAMFER + ';',
+          innerStyle: 'position:absolute;inset:3px;background:' + innerGrad + ';clip-path:' + CHAMFER + ';padding:11px 11px 12px;overflow:hidden;',
+          shineStyle: 'position:absolute;top:-40%;left:-30%;width:70%;height:180%;background:linear-gradient(115deg,transparent 42%,rgba(255,255,255,.14) 50%,transparent 58%);transform:rotate(8deg);pointer-events:none;',
+          onRemove: () => this.cqRemoveMyPlayer(p.id),
+        };
+      });
       out.cqMyRosterCount = myRoster.length;
       out.cqMyRosterEmpty = myRoster.length === 0;
       out.onCqAddPlayer = () => this.cqOpenPlayerForm('register');
@@ -1896,14 +1946,16 @@ class Component extends DCLogic {
     const cr = s.cardReveal;
     out.cardRevealOpen = !!(cr && cr.open);
     if (cr && cr.open) {
+      const NAVY2 = 'linear-gradient(165deg,#0b1a3d 0%,#173876 45%,#0a1430 100%)';
       const tierStyles = {
-        'gold-red':  { bg: 'linear-gradient(160deg,#ffd08a 0%,#e07a3f 45%,#c14a4a 100%)',   text: '#4a1010', ring: '#ffb877' },
-        'gold':      { bg: 'linear-gradient(160deg,#fff1a5 0%,#f4d772 40%,#a8801f 100%)',   text: '#3a2a00', ring: '#f4d772' },
-        'bronze':    { bg: 'linear-gradient(160deg,#f2c391 0%,#c78548 45%,#7a4820 100%)',   text: '#3a1f08', ring: '#c78548' },
-        'silver':    { bg: 'linear-gradient(160deg,#eef2f7 0%,#b8c1cc 40%,#5e6a78 100%)',   text: '#1c2530', ring: '#c8d0da' },
-        'icon':      { bg: 'linear-gradient(160deg,#f6e6b8 0%,#c9a752 45%,#8a6c1e 100%)',   text: '#3a2a00', ring: '#f6e6b8' },
-        'hero':      { bg: 'linear-gradient(160deg,#e3b8ff 0%,#8b3fd6 45%,#3d0f5e 100%)',   text: '#f5e8ff', ring: '#c88aff' },
+        'gold-red':  { bg: NAVY2, text: '#f6df9a', ring: '#f0b36a' },
+        'gold':      { bg: NAVY2, text: '#f6df9a', ring: '#f6df9a' },
+        'bronze':    { bg: 'linear-gradient(165deg,#0d1730 0%,#123058 45%,#0a1226 100%)', text: '#f6df9a', ring: '#c9a86a' },
+        'silver':    { bg: 'linear-gradient(165deg,#0e1a34 0%,#20406e 45%,#0b1526 100%)', text: '#e6eefb', ring: '#9fb6d6' },
+        'icon':      { bg: NAVY2, text: '#f6df9a', ring: '#f6e6b8' },
+        'hero':      { bg: 'linear-gradient(165deg,#160b3d 0%,#3a2585 45%,#0f0a2e 100%)', text: '#f0e6ff', ring: '#c88aff' },
       };
+      const CHAMFER_R = 'polygon(6% 0,94% 0,100% 5%,100% 95%,94% 100%,6% 100%,0 95%,0 5%)';
       out.cardRevealCount = cr.cards.length;
       out.cardRevealItems = cr.cards.map((c, i) => {
         const ts = tierStyles[c.tier] || tierStyles.gold;
@@ -1916,7 +1968,7 @@ class Component extends DCLogic {
           posCode: c.pos,
           textColor: ts.text,
           wrapperStyle: 'opacity:0;animation:cardReveal .7s cubic-bezier(.2,.9,.3,1.1) ' + delay + 'ms forwards, cardGlow 2.4s ease-in-out ' + (delay + 700) + 'ms infinite;transform-origin:center;perspective:800px;',
-          cardStyle: 'width:200px;height:290px;border-radius:16px;padding:16px 14px 14px;overflow:hidden;position:relative;box-shadow:0 20px 50px rgba(0,0,0,.7),inset 0 0 40px rgba(255,255,255,.1),0 0 0 2px ' + ts.ring + '77;background:' + ts.bg + ';color:' + ts.text + ';font-family:"Space Grotesk";',
+          cardStyle: 'width:200px;height:290px;clip-path:' + CHAMFER_R + ';padding:16px 14px 14px;overflow:hidden;position:relative;box-shadow:0 20px 50px rgba(0,0,0,.75),0 0 0 2px ' + ts.ring + 'aa;background:linear-gradient(160deg,' + ts.ring + ',' + ts.ring + '55);color:' + ts.text + ';font-family:"Space Grotesk";',
         };
       });
     } else {
@@ -2306,7 +2358,7 @@ class Component extends DCLogic {
     const name = (pf.name || '').trim();
     if (!name) return;
     const rating = Math.max(1, Math.min(99, parseInt(pf.rating, 10) || 70));
-    const player = { id: 'p_' + Math.random().toString(36).slice(2,9), name, pos: pf.pos, rating };
+    const player = { id: 'p_' + Math.random().toString(36).slice(2,9), name, pos: pf.pos, rating, origin: pf.mode, fromTeam: pf.mode === 'steal' ? (this.teamName(pf.fromTeamId) || '') : '' };
     let rosters = { ...c.rosters, [c.myTeamId]: [...(c.rosters[c.myTeamId] || []), player] };
     let cards = c.cards;
     let logMsg;
