@@ -495,6 +495,34 @@ input:focus{outline:none;}
           </div>
 
           <div style="background:#0c121a;border:1px solid #1e2733;border-radius:13px;padding:16px;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+              <div style="font-family:'Space Grotesk';font-weight:800;font-size:16px;">🏴 Times conquistados</div>
+              <span style="padding:3px 9px;border-radius:99px;background:#141c26;border:1px solid #263140;font-size:11px;color:#8b97a5;">{{ cqConqueredCount }}</span>
+              <div style="flex:1;"></div>
+              <span style="font-size:11px;color:#7f8b99;">Cada território mantém o nome do time original; a cor mostra que agora é seu.</span>
+            </div>
+            <sc-if value="{{ cqHasConquered }}" hint-placeholder-val="{{ false }}">
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;">
+                <sc-for list="{{ cqConquered }}" as="t" hint-placeholder-count="4">
+                  <div style="display:flex;align-items:center;gap:9px;padding:9px 11px;background:#141c26;border:1px solid #263140;border-radius:9px;">
+                    <span style="width:11px;height:22px;border-radius:3px;background:{{ t.color }};flex-shrink:0;box-shadow:0 0 8px {{ t.color }}66;"></span>
+                    <div style="flex:1;min-width:0;">
+                      <div style="font-family:'Space Grotesk';font-weight:700;font-size:13px;color:#e6ebf0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ t.name }}</div>
+                      <div style="font-size:10.5px;color:#8b97a5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ t.area }}</div>
+                    </div>
+                    <span style="font-size:12px;color:#22e07a;font-weight:800;">✔</span>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+            <sc-if value="{{ cqNoConquered }}" hint-placeholder-val="{{ true }}">
+              <div style="font-size:12.5px;color:#7f8b99;padding:22px 20px;text-align:center;background:#0a1120;border:1px dashed #26313f;border-radius:12px;line-height:1.6;">
+                Nenhum time conquistado ainda. Vença partidas para dominar territórios vizinhos — eles aparecerão aqui com a cor do seu time.
+              </div>
+            </sc-if>
+          </div>
+
+          <div style="background:#0c121a;border:1px solid #1e2733;border-radius:13px;padding:16px;">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
               <div style="font-family:'Space Grotesk';font-weight:800;font-size:16px;">⭐ Meu elenco</div>
               <span style="padding:3px 9px;border-radius:99px;background:#141c26;border:1px solid #263140;font-size:11px;color:#8b97a5;">{{ cqMyRosterCount }} jogadores</span>
@@ -1717,14 +1745,14 @@ class Component extends DCLogic {
         }
       }
       out.cqMapEdges = edges;
-      // Tint each team color toward a warm terrain tan for the topographic look
+      // Keep team colours vivid so many territories stay distinguishable; only a
+      // light warm tint for the terrain feel (was a heavy 45% sand mix before).
       const tintTerrain = (hex) => {
         const h = hex.replace('#','');
         const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
-        // mix 55% team color + 45% warm sand (#e8c583)
-        const mr = Math.round(r*0.55 + 232*0.45);
-        const mg = Math.round(g*0.55 + 197*0.45);
-        const mb = Math.round(b*0.55 + 131*0.45);
+        const mr = Math.round(r*0.82 + 232*0.18);
+        const mg = Math.round(g*0.82 + 197*0.18);
+        const mb = Math.round(b*0.82 + 131*0.18);
         return '#' + [mr,mg,mb].map(v=>v.toString(16).padStart(2,'0')).join('');
       };
       out.cqTerritories = cq.territories.map(t => {
@@ -1732,9 +1760,11 @@ class Component extends DCLogic {
         const attackable = !isMine && (adj[t.pos] || []).some(n => cq.territories[n].ownerTeamId === cq.myTeamId);
         const ownerColor = isMine ? myColor : this.cqColorForTeam(t.ownerTeamId);
         const wmi = wm[t.pos % wm.length];
-        // Show CURRENT owner's team name on the map
-        const ownerName = this.teamName(t.ownerTeamId);
-        const shortName = ownerName.length > 13 ? ownerName.slice(0, 12) + '…' : ownerName;
+        // Territory ALWAYS keeps its ORIGINAL team's name — only the colour signals
+        // who owns it now (the conquering team's colour).
+        const originName = this.teamName(t.teamId);
+        const shortName = originName.length > 13 ? originName.slice(0, 12) + '…' : originName;
+        const conqueredByMe = isMine && t.teamId !== cq.myTeamId;
         return {
           pos: t.pos,
           x: wmi.x,
@@ -1751,10 +1781,26 @@ class Component extends DCLogic {
           glow: attackable ? ('drop-shadow(0 0 8px ' + accent + ')') : (isMine ? ('drop-shadow(0 0 6px ' + myColor + ')') : 'none'),
           cursor: attackable ? 'pointer' : 'default',
           onClick: attackable ? () => this.cqOpenAttack(t.pos) : () => {},
-          badge: isMine ? 'EU' : (attackable ? '⚔' : ''),
+          badge: conqueredByMe ? '✔' : (isMine ? 'EU' : (attackable ? '⚔' : '')),
           hasBadge: isMine || attackable,
         };
       });
+
+      // Teams the player has CONQUERED — their homeland is now owned by me but
+      // keeps its original identity. Panel lists them with their own colour.
+      const conquered = cq.territories
+        .filter(t => t.ownerTeamId === cq.myTeamId && t.teamId !== cq.myTeamId)
+        .map(t => ({
+          pos: t.pos,
+          name: this.teamName(t.teamId),
+          area: t.areaName || '',
+          color: this.cqColorForTeam(t.teamId),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      out.cqConquered = conquered;
+      out.cqConqueredCount = conquered.length;
+      out.cqHasConquered = conquered.length > 0;
+      out.cqNoConquered = conquered.length === 0;
 
       // Attack list — frontier neighbors only, showing the defending team name
       const attacks = out.cqTerritories.filter(t => t.attackable).map(t => {
@@ -1875,6 +1921,7 @@ class Component extends DCLogic {
       out.cqTerritories = []; out.cqMapEdges = []; out.cqAttackList = []; out.cqHasAttacks = false; out.cqNoAttacks = true;
       out.cqCards = []; out.cqHasCards = false; out.cqNoCards = true; out.cqCardsTotalCount = 0; out.cqCardsUnusedCount = 0;
       out.cqMyRoster = []; out.cqMyRosterCount = 0; out.cqMyRosterEmpty = true; out.onCqAddPlayer = () => {};
+      out.cqConquered = []; out.cqConqueredCount = 0; out.cqHasConquered = false; out.cqNoConquered = true;
       out.cqLog = []; out.cqHasLog = false; out.cqNoLog = true;
       out.cqEndOpen = false; out.cqEndIcon = ''; out.cqEndTitle = ''; out.cqEndMsg = ''; out.cqEndColor = accent;
       out.onCqEndNew = () => this.cqNewCampaign();
@@ -2151,8 +2198,14 @@ class Component extends DCLogic {
       { type: 'steal_any', label: 'Roubar jogador',      desc: 'Cadastre um jogador roubado de qualquer time adversário.', icon: '🎯', rating: 90, pos: 'STL', tier: 'gold-red' },
       { type: 'steal_pos', label: 'Roubar de um setor',  desc: 'Roube um jogador escolhendo o setor (GOL/DEF/MEI/ATA).',       icon: '🕵️', rating: 87, pos: 'STL', tier: 'bronze' },
       { type: 'free_agent',label: 'Agente livre',        desc: 'Contrate um jogador disponível no mercado.',                 icon: '💰', rating: 85, pos: 'F.A.', tier: 'gold' },
-      { type: 'boost_any', label: 'Melhorar atributos',  desc: '+5 no rating de um jogador do seu elenco.',                   icon: '⚡',  rating: 88, pos: 'BST', tier: 'icon' },
-      { type: 'boost_pos', label: 'Reforço de setor',    desc: '+3 em todos jogadores de um setor escolhido.',                icon: '💪', rating: 84, pos: 'BST', tier: 'silver' },
+      { type: 'youth',     label: 'Joia da base',        desc: 'Revela um talento sub-21 pronto para subir ao elenco.',      icon: '💎', rating: 83, pos: 'JOI', tier: 'icon' },
+      { type: 'boost_any', label: 'Melhorar atributos',  desc: '+5 no rating de um jogador do seu elenco.',                   icon: '⚡',  rating: 88, pos: 'BST', tier: 'icon', delta: 5 },
+      { type: 'boost_star',label: 'Craque em ascensão',  desc: '+8 no rating de um jogador escolhido.',                       icon: '🌟', rating: 91, pos: 'BST', tier: 'hero', delta: 8 },
+      { type: 'captain',   label: 'Braçadeira de capitão',desc: '+10 num jogador — vira o líder do time.',                    icon: '👑', rating: 93, pos: 'CAP', tier: 'gold-red', delta: 10 },
+      { type: 'mentor',    label: 'Mentoria de veterano',desc: '+6 num jogador com rating abaixo de 80.',                    icon: '🎓', rating: 84, pos: 'BST', tier: 'silver', delta: 6 },
+      { type: 'boost_all', label: 'Moral nas alturas',   desc: '+1 no rating de TODO o elenco.',                              icon: '🔥', rating: 86, pos: 'MOR', tier: 'gold', delta: 1 },
+      { type: 'boost_pos', label: 'Reforço de setor',    desc: '+3 em todos jogadores de um setor escolhido.',                icon: '💪', rating: 84, pos: 'BST', tier: 'silver', delta: 3 },
+      { type: 'boost_pos_big', label: 'Investimento pesado', desc: '+5 em todos jogadores de um setor escolhido.',            icon: '🏦', rating: 87, pos: 'BST', tier: 'gold', delta: 5 },
       { type: 'shield',    label: 'Escudo defensivo',    desc: 'Evita perder jogador na próxima derrota.',                    icon: '🛡️', rating: 82, pos: 'DEF', tier: 'silver' },
       { type: 'double_conquest', label: 'Dupla conquista',desc: 'Conquiste +1 território vizinho gratuitamente.',              icon: '⭐', rating: 92, pos: '2×', tier: 'hero' },
     ];
@@ -2261,13 +2314,32 @@ class Component extends DCLogic {
       this.cqOpenPlayerForm('steal', cardId);
     } else if (card.type === 'free_agent') {
       this.cqOpenPlayerForm('agent', cardId);
-    } else if (card.type === 'boost_any') {
-      const mine = c.rosters[c.myTeamId] || [];
-      const opts = mine.map(p => ({ kind: 'boost', player: p, delta: 5 }));
-      this.setState({ cardPicker: { open: true, cardId, title: 'Melhorar atributos', subtitle: '+5 no rating do jogador escolhido.', icon: '⚡', bg: 'linear-gradient(135deg,#22e0c0,#106660)', mode: 'boost', options: opts } });
-    } else if (card.type === 'boost_pos') {
-      const opts = ['GOL','ZAG','LAT','VOL','MEI','ATA'].map(pos => ({ kind: 'boost_pos', pos, delta: 3 }));
-      this.setState({ cardPicker: { open: true, cardId, title: 'Reforço de setor', subtitle: '+3 em todos jogadores do setor escolhido.', icon: '💪', bg: 'linear-gradient(135deg,#4b7fe0,#1f3a7a)', mode: 'boost_sector', options: opts } });
+    } else if (card.type === 'youth') {
+      const young = this.cqGenYouth(3).map(p => ({ kind: 'agent', player: p }));
+      this.setState({ cardPicker: { open: true, cardId, title: 'Joia da base', subtitle: 'Escolha o talento jovem que sobe ao elenco.', icon: '💎', bg: 'linear-gradient(135deg,#22a0e0,#12507a)', mode: 'agent', options: young } });
+    } else if (card.type === 'boost_any' || card.type === 'boost_star' || card.type === 'captain' || card.type === 'mentor') {
+      let mine = c.rosters[c.myTeamId] || [];
+      const delta = card.delta || 5;
+      if (card.type === 'mentor') mine = mine.filter(p => p.rating < 80);
+      if (!mine.length) { alert(card.type === 'mentor' ? 'Nenhum jogador abaixo de 80 no elenco.' : 'Nenhum jogador no elenco para melhorar.'); return; }
+      const opts = mine.map(p => ({ kind: 'boost', player: p, delta }));
+      const meta = {
+        boost_any:  { t: 'Melhorar atributos',    i: '⚡', bg: 'linear-gradient(135deg,#22e0c0,#106660)' },
+        boost_star: { t: 'Craque em ascensão',    i: '🌟', bg: 'linear-gradient(135deg,#f4d772,#a8801f)' },
+        captain:    { t: 'Braçadeira de capitão', i: '👑', bg: 'linear-gradient(135deg,#f4d772,#8a5a10)' },
+        mentor:     { t: 'Mentoria de veterano',  i: '🎓', bg: 'linear-gradient(135deg,#9fb6d6,#3a4a5e)' },
+      }[card.type];
+      this.setState({ cardPicker: { open: true, cardId, title: meta.t, subtitle: '+' + delta + ' no rating do jogador escolhido.', icon: meta.i, bg: meta.bg, mode: 'boost', options: opts } });
+    } else if (card.type === 'boost_all') {
+      const delta = card.delta || 1;
+      const rosters = { ...c.rosters, [c.myTeamId]: (c.rosters[c.myTeamId] || []).map(x => ({ ...x, rating: Math.min(99, x.rating + delta) })) };
+      const cards = c.cards.map(x => x.id === cardId ? { ...x, used: true, usedAt: Date.now() } : x);
+      const log = [{ msg: '🔥 Moral nas alturas: +' + delta + ' em todo o elenco.', color: '#e0722c', ts: Date.now() }, ...c.log].slice(0, 60);
+      this.setState({ conquest: { ...c, rosters, cards, log } });
+    } else if (card.type === 'boost_pos' || card.type === 'boost_pos_big') {
+      const delta = card.delta || 3;
+      const opts = ['GOL','ZAG','LAT','VOL','MEI','ATA'].map(pos => ({ kind: 'boost_pos', pos, delta }));
+      this.setState({ cardPicker: { open: true, cardId, title: card.label, subtitle: '+' + delta + ' em todos jogadores do setor escolhido.', icon: card.icon, bg: 'linear-gradient(135deg,#4b7fe0,#1f3a7a)', mode: 'boost_sector', options: opts } });
     } else if (card.type === 'shield') {
       // Passive card. Explain — but mark inactive: it activates on next loss automatically.
       alert('Escudo Defensivo permanece ativo — protegerá seu elenco na próxima derrota. Não é necessário usar manualmente.');
@@ -2287,6 +2359,17 @@ class Component extends DCLogic {
       name: first[Math.floor(Math.random()*first.length)] + ' ' + last[Math.floor(Math.random()*last.length)],
       pos: positions[Math.floor(Math.random()*positions.length)],
       rating: 72 + Math.floor(Math.random() * 20),
+    }));
+  }
+  cqGenYouth(n) {
+    const first = ['Endrick','Estêvão','Vitor','Luigi','Kauã','Rayan','Gabriel','Matheus','Pedro','Wesley','Lucas','Ângelo'];
+    const last = ['Roque','Messias','Serrano','Andrade','Nunes','Reis','Moscardo','França','Lima','Almeida','Barros'];
+    const positions = ['GOL','ZAG','LAT','VOL','MEI','ATA'];
+    return Array.from({ length: n }, () => ({
+      id: 'yt_' + Math.random().toString(36).slice(2,9),
+      name: first[Math.floor(Math.random()*first.length)] + ' ' + last[Math.floor(Math.random()*last.length)],
+      pos: positions[Math.floor(Math.random()*positions.length)],
+      rating: 76 + Math.floor(Math.random() * 9),
     }));
   }
   cqNoop() {}
