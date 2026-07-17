@@ -13,6 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
 <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 </style>
 <style>
 *{box-sizing:border-box;}
@@ -452,7 +453,7 @@ input:focus{outline:none;}
               <span style="font-size:11.5px;color:#8b97a5;">Clique num território marcado com ⚔ para atacar</span>
               <button onclick="{{ onOpenCardsModal }}" style="display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:9px;background:linear-gradient(135deg,#f4d772,#a8801f);border:1px solid #d4b04a;color:#2a1a00;font-size:12.5px;font-weight:800;font-family:'Space Grotesk';cursor:pointer;box-shadow:0 4px 12px rgba(212,176,74,.28);" style-hover="filter:brightness(1.08);">🎴 Cartas <span style="padding:1px 7px;border-radius:99px;background:rgba(0,0,0,.35);color:#fff;font-family:'JetBrains Mono',monospace;font-size:11px;">{{ cqCardsUnusedCount }}/{{ cqCardsTotalCount }}</span></button>
             </div>
-            <x-import component-from-global-scope="CqMap3D" from="./cq-map-3d.jsx" territories="{{ cqTerritories }}" hint-size="100%,520px"></x-import>
+            <x-import component-from-global-scope="CqMap3D" from="./cq-map-3d.jsx" territories="{{ cqTerritories }}" hint-size="100%,400px"></x-import>
             <div style="margin-top:12px;font-size:11px;color:#7f8b99;line-height:1.5;">
               Arraste para girar o mapa, use a roda do mouse para aproximar. Só é possível atacar territórios inimigos que fazem fronteira com você (marcados com ⚔).
             </div>
@@ -1724,8 +1725,7 @@ class Component extends DCLogic {
       out.cqGridCols = cq.cols;
       const myTeamName = this.teamName(cq.myTeamId);
       out.cqMyTeamName = myTeamName;
-      const myOrig = cq.territories.find(t => t.teamId === cq.myTeamId);
-      const myColor = myOrig ? myOrig.color : accent;
+      const myColor = '#22e07a'; // My color is always green in the simplified scheme
       out.cqMyColor = myColor;
 
       // Territories
@@ -1758,11 +1758,15 @@ class Component extends DCLogic {
       out.cqTerritories = cq.territories.map(t => {
         const isMine = t.ownerTeamId === cq.myTeamId;
         const attackable = !isMine && (adj[t.pos] || []).some(n => cq.territories[n].ownerTeamId === cq.myTeamId);
-        const ownerColor = isMine ? myColor : this.cqColorForTeam(t.ownerTeamId);
+        // Simplified two-color scheme: mine → green, everyone else → grey.
+        // Attackable stands out via the pulsing green halo (rendered inside
+        // CqMap3D), not via a distinct fill colour.
+        const MINE_COLOR = '#22e07a';
+        const OTHER_COLOR = '#4a5462';
+        const ownerColor = isMine ? MINE_COLOR : OTHER_COLOR;
         const wmi = wm[t.pos % wm.length];
-        // Territory ALWAYS keeps its ORIGINAL team's name — only the colour signals
-        // who owns it now (the conquering team's colour).
         const originName = this.teamName(t.teamId);
+        const ownerName = this.teamName(t.ownerTeamId);
         const shortName = originName.length > 13 ? originName.slice(0, 12) + '…' : originName;
         const conqueredByMe = isMine && t.teamId !== cq.myTeamId;
         return {
@@ -1773,18 +1777,46 @@ class Component extends DCLogic {
           teamLabelY: wmi.y + 4,
           badgeY: wmi.y + 20,
           name: shortName,
+          areaName: t.areaName || '',
+          originName,
+          ownerName,
           color: tintTerrain(ownerColor),
           shadowColor: '#3a2a12',
           isMine, attackable,
           stroke: isMine ? '#ffffff' : (attackable ? accent : 'rgba(60,40,15,.55)'),
           strokeWidth: (isMine || attackable) ? 3 : 1.2,
-          glow: attackable ? ('drop-shadow(0 0 8px ' + accent + ')') : (isMine ? ('drop-shadow(0 0 6px ' + myColor + ')') : 'none'),
+          glow: attackable ? ('drop-shadow(0 0 8px ' + accent + ')') : (isMine ? ('drop-shadow(0 0 6px ' + MINE_COLOR + ')') : 'none'),
           cursor: attackable ? 'pointer' : 'default',
           onClick: attackable ? () => this.cqOpenAttack(t.pos) : () => {},
           badge: conqueredByMe ? '✔' : (isMine ? 'EU' : (attackable ? '⚔' : '')),
           hasBadge: isMine || attackable,
         };
       });
+
+      // Aggregate stats for the fullscreen-map HUD (goals, matches, wins…)
+      let goalsFor = 0, goalsAgainst = 0, wins = 0, draws = 0, losses = 0, matchesPlayed = 0;
+      (cq.matchHistory || []).forEach(h => {
+        matchesPlayed++;
+        goalsFor += (h.homeScore || 0);
+        goalsAgainst += (h.awayScore || 0);
+        if (h.homeScore > h.awayScore) wins++;
+        else if (h.homeScore < h.awayScore) losses++;
+        else draws++;
+      });
+      const attackableCount = out.cqTerritories.filter(t => t.attackable).length;
+      out.cqMapStats = {
+        myTeamName: myTeamName,
+        myColor: myColor,
+        dominated: mine,
+        total: total,
+        pct: out.cqPct,
+        attackable: attackableCount,
+        matchesPlayed, wins, draws, losses,
+        goalsFor, goalsAgainst,
+        goalDiff: goalsFor - goalsAgainst,
+      };
+      // Callback used by the fullscreen map tab to resolve attacks locally
+      out.onCqExecuteAttackFromMap = (pos, hs, as, ph, pa) => this.cqExecuteAttackFromMap(pos, hs, as, ph, pa);
 
       // Teams the player has CONQUERED — their homeland is now owned by me but
       // keeps its original identity. Panel lists them with their own colour.
@@ -2192,6 +2224,42 @@ class Component extends DCLogic {
       modal: { open: true, matchId: mid, phase: 'conquest', draft: { home: '', away: '', status: 'finished', penHome: '', penAway: '' } },
     });
   }
+  // Programmatic attack executor used by the fullscreen 3D map tab: takes
+  // scores directly, applies win/loss and logs to matchHistory, without
+  // opening the main-tab modal.
+  cqExecuteAttackFromMap(defenderPos, homeScore, awayScore, penHome, penAway) {
+    const pos = typeof defenderPos === 'number' ? defenderPos : parseInt(defenderPos, 10);
+    const c = this.state.conquest;
+    if (!c || c.status !== 'playing') return { ok: false, reason: 'not_playing' };
+    if (!Number.isInteger(pos) || pos < 0 || pos >= c.territories.length) return { ok: false, reason: 'invalid_pos' };
+    const target = c.territories[pos];
+    if (!target) return { ok: false, reason: 'invalid_pos' };
+    if (target.ownerTeamId === c.myTeamId) return { ok: false, reason: 'already_mine' };
+    // Trust the map tab about adjacency: if it showed the pin as attackable
+    // and the territory isn't ours, proceed. Log a warning if the strict
+    // frontier check disagrees so we can spot data drift.
+    if (!this.cqIsFrontier(pos)) {
+      console.warn('[cqExecuteAttackFromMap] proceeding on non-strict-frontier pos', pos);
+    }
+    const hs = parseInt(homeScore, 10);
+    const as = parseInt(awayScore, 10);
+    if (isNaN(hs) || isNaN(as)) return { ok: false, reason: 'invalid_scores' };
+    let playerWon = hs > as;
+    if (hs === as) {
+      const ph = parseInt(penHome, 10);
+      const pa = parseInt(penAway, 10);
+      if (isNaN(ph) || isNaN(pa) || ph === pa) return { ok: false, reason: 'need_penalties' };
+      playerWon = ph > pa;
+    }
+    this.state.conquest.matchHistory = [
+      ...(c.matchHistory || []),
+      { at: Date.now(), defenderPos: pos, homeScore: hs, awayScore: as, won: playerWon },
+    ];
+    if (playerWon) this.cqApplyWin(pos);
+    else this.cqApplyLoss(pos);
+    return { ok: true, playerWon };
+  }
+
   cqDrawCard() {
     const c = this.state.conquest;
     const pool = [

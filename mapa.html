@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>🌍 Mapa 3D — Conquista Mundial</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;
+    background:#04070d;color:#e6ebf0;font-family:'Barlow',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;}
+  #root{position:fixed;inset:0;}
+  .map-wrap{position:absolute;inset:0;}
+  .hud{position:absolute;top:16px;left:16px;z-index:10;
+    background:linear-gradient(145deg,rgba(14,22,32,.92),rgba(10,16,24,.92));
+    border:1px solid #1e2733;border-radius:14px;padding:16px 18px;
+    backdrop-filter:blur(8px);box-shadow:0 10px 30px rgba(0,0,0,.5);
+    min-width:260px;max-width:340px;font-family:'Space Grotesk',sans-serif;
+    pointer-events:auto;}
+  .hud-title{display:flex;align-items:center;gap:10px;margin-bottom:12px;
+    padding-bottom:12px;border-bottom:1px solid #1e2733;}
+  .hud-title-chip{width:14px;height:14px;border-radius:4px;flex-shrink:0;}
+  .hud-title-name{font-weight:800;font-size:15px;color:#e6ebf0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .hud-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+  .hud-cell{background:#141c26;border:1px solid #263140;border-radius:9px;padding:9px 11px;}
+  .hud-cell-full{grid-column:1/-1;}
+  .hud-label{font-size:10px;color:#8b97a5;text-transform:uppercase;
+    letter-spacing:.5px;margin-bottom:2px;}
+  .hud-value{font-family:'JetBrains Mono',monospace;font-weight:700;
+    font-size:18px;color:#e6ebf0;line-height:1.1;}
+  .hud-value .sub{color:#3a4552;font-size:12px;font-weight:500;}
+  .hud-value.accent{color:#22e07a;}
+  .hud-value.warn{color:#f4d772;}
+  .hud-value.bad{color:#e0454b;}
+  .hud-hint{margin-top:12px;padding:9px 11px;background:rgba(34,224,122,.08);
+    border:1px solid rgba(34,224,122,.25);border-radius:9px;font-size:11.5px;
+    color:#8bd4a5;line-height:1.4;}
+  .top-actions{position:absolute;top:16px;right:16px;z-index:10;display:flex;gap:8px;}
+  .btn{background:#141c26;border:1px solid #263140;color:#e6ebf0;
+    padding:9px 14px;border-radius:9px;font-family:'Space Grotesk',sans-serif;
+    font-weight:700;font-size:12.5px;cursor:pointer;pointer-events:auto;
+    transition:background .15s,border-color .15s;backdrop-filter:blur(6px);}
+  .btn:hover{background:#1a2530;border-color:#22e07a;}
+  .btn-close{background:rgba(224,69,75,.15);border-color:rgba(224,69,75,.4);color:#f8a5a7;}
+  .btn-close:hover{background:rgba(224,69,75,.28);border-color:#e0454b;}
+  .footer{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);
+    z-index:10;font-size:11.5px;color:#7f8b99;background:rgba(10,16,24,.7);
+    padding:6px 14px;border-radius:99px;border:1px solid #1e2733;
+    backdrop-filter:blur(6px);pointer-events:none;}
+  .empty{position:absolute;inset:0;display:flex;align-items:center;
+    justify-content:center;flex-direction:column;gap:14px;color:#8b97a5;
+    font-size:14px;text-align:center;padding:32px;}
+  /* --- Attack modal --- */
+  .modal-backdrop{position:fixed;inset:0;z-index:100;
+    background:rgba(4,7,13,.72);backdrop-filter:blur(6px);
+    display:flex;align-items:center;justify-content:center;padding:24px;
+    animation:fadeIn .18s ease;}
+  @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+  .modal-card{background:linear-gradient(150deg,#0e1a26,#0a1220);
+    border:1px solid #253244;border-radius:16px;padding:26px 28px;
+    width:min(440px,100%);box-shadow:0 24px 60px rgba(0,0,0,.6);
+    animation:slideUp .22s ease;}
+  @keyframes slideUp{from{transform:translateY(24px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+  .modal-title{font-family:'Space Grotesk',sans-serif;font-weight:800;
+    font-size:20px;color:#e6ebf0;margin:0 0 6px;}
+  .modal-sub{font-size:12.5px;color:#8b97a5;margin-bottom:18px;}
+  .versus{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;
+    align-items:center;margin-bottom:18px;}
+  .team-box{background:#141c26;border:1px solid #263140;border-radius:11px;
+    padding:14px 12px;text-align:center;}
+  .team-box .chip{width:24px;height:24px;border-radius:6px;margin:0 auto 8px;
+    box-shadow:0 0 12px currentColor;}
+  .team-box .team-name{font-weight:700;font-size:13px;color:#e6ebf0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .team-box .team-role{font-size:10px;color:#8b97a5;text-transform:uppercase;
+    letter-spacing:.5px;margin-top:3px;}
+  .vs{font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:14px;
+    color:#e0454b;letter-spacing:1px;}
+  .scores{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;
+    align-items:center;margin-bottom:14px;}
+  .score-input{width:100%;padding:14px 10px;background:#0a1220;
+    border:1px solid #263140;border-radius:9px;color:#e6ebf0;
+    font-family:'JetBrains Mono',monospace;font-weight:700;font-size:26px;
+    text-align:center;outline:none;transition:border-color .15s;}
+  .score-input:focus{border-color:#22e07a;}
+  .dash{color:#3a4552;font-family:'JetBrains Mono',monospace;font-weight:700;
+    font-size:22px;}
+  .pen-hint{font-size:11.5px;color:#f4d772;background:rgba(244,215,114,.08);
+    border:1px solid rgba(244,215,114,.25);border-radius:8px;padding:8px 10px;
+    margin-bottom:14px;}
+  .pen-label{font-size:11px;color:#8b97a5;text-transform:uppercase;
+    letter-spacing:.5px;margin-bottom:4px;}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;}
+  .btn-primary{background:linear-gradient(135deg,#22e07a,#1a9d55);
+    border-color:#22e07a;color:#04140b;font-weight:800;
+    box-shadow:0 6px 18px rgba(34,224,122,.28);}
+  .btn-primary:hover{background:linear-gradient(135deg,#28f086,#1eab5c);}
+  .btn-primary:disabled{opacity:.5;cursor:not-allowed;box-shadow:none;
+    background:#263140;color:#8b97a5;border-color:#263140;}
+  /* --- Toast --- */
+  .toast{position:fixed;top:24px;left:50%;transform:translate(-50%,-24px);
+    z-index:200;background:linear-gradient(135deg,#0e1a26,#0a1220);
+    border:1px solid #263140;border-radius:12px;padding:14px 22px;
+    font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;
+    color:#e6ebf0;box-shadow:0 20px 40px rgba(0,0,0,.5);opacity:0;
+    transition:transform .3s ease,opacity .3s ease;pointer-events:none;}
+  .toast.show{transform:translate(-50%,0);opacity:1;}
+  .toast.win{border-color:#22e07a;color:#22e07a;
+    box-shadow:0 20px 40px rgba(34,224,122,.28);}
+  .toast.lose{border-color:#e0454b;color:#f8a5a7;
+    box-shadow:0 20px 40px rgba(224,69,75,.28);}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+// Cache-buster: force fresh load of the JSX every session so the browser
+// doesn't serve a stale version after you edit the file.
+document.write('<script src="./cq-map-3d.jsx?v=' + Date.now() + '"><\/script>');
+</script>
+<script>
+(function () {
+  console.log('%c[mapa.html] version 2026-07-17-r7 — pause loop + optimistic update', 'color:#22e07a;font-weight:bold');
+  const { useState, useEffect, useRef, useCallback } = React;
+
+  // ---------- Cross-tab state sync -------------------------------------
+  function loadInitial() {
+    let territories = [], stats = {}, ts = 0;
+    try {
+      territories = JSON.parse(localStorage.getItem('cq-map-territories') || '[]');
+      stats = JSON.parse(localStorage.getItem('cq-map-stats') || '{}');
+      ts = parseInt(localStorage.getItem('cq-map-ts') || '0', 10);
+    } catch (e) {}
+    return { territories, stats, ts };
+  }
+
+  function FullscreenMap() {
+    const [state, setState] = useState(loadInitial());
+    const [attackModal, setAttackModal] = useState(null); // {pos, targetName, area, homeScore, awayScore, penHome, penAway, submitting}
+    const [toast, setToast] = useState(null); // {kind:'win'|'lose', text}
+    const bcRef = useRef(null);
+
+    useEffect(() => {
+      if (typeof BroadcastChannel === 'undefined') return;
+      const bc = new BroadcastChannel('cq-map');
+      bcRef.current = bc;
+      bc.onmessage = (e) => {
+        const d = e.data || {};
+        if (d.type === 'cq-map-state') {
+          setState({
+            territories: d.territories || [],
+            stats: d.stats || {},
+            ts: Date.now(),
+          });
+        } else if (d.type === 'cq-attack-result') {
+          handleAttackResult(d);
+        }
+      };
+      try { bc.postMessage({ type: 'cq-map-hello' }); } catch (e) {}
+      const onStorage = (e) => { if (e.key === 'cq-map-ts') setState(loadInitial()); };
+      const onWinMsg = (e) => {
+        const d = e.data || {};
+        if (d.type === 'cq-attack-result') handleAttackResult(d);
+      };
+      window.addEventListener('storage', onStorage);
+      window.addEventListener('message', onWinMsg);
+      return () => {
+        window.removeEventListener('storage', onStorage);
+        window.removeEventListener('message', onWinMsg);
+        try { bc.close(); } catch (er) {}
+      };
+    }, []);
+
+    const handleAttackResult = useCallback((d) => {
+      window.__cqMapPaused = false; // resume 3D loop
+      setAttackModal(prevModal => {
+        // Optimistic update: mark territory as mine so pins repaint instantly,
+        // without waiting for the state broadcast from the main tab.
+        if (d.ok && d.playerWon) {
+          const pos = (prevModal && prevModal.pos) != null ? prevModal.pos : d.pos;
+          if (pos != null) {
+            setState(s => ({
+              ...s,
+              territories: (s.territories || []).map(t =>
+                t.pos === pos ? { ...t, isMine: true, attackable: false, ownerName: s.stats && s.stats.myTeamName || t.ownerName } : t
+              ),
+              stats: { ...(s.stats || {}), dominated: (s.stats && s.stats.dominated || 0) + 1 },
+            }));
+          }
+        }
+        return null;
+      });
+      if (d.ok) {
+        setToast({
+          kind: d.playerWon ? 'win' : 'lose',
+          text: d.playerWon ? '🏆 Vitória! Território conquistado.' : '💔 Derrota. Você perdeu jogadores.',
+        });
+      } else if (d.reason) {
+        setToast({ kind: 'lose', text: '⚠ Ataque não pôde ser processado (' + d.reason + ')' });
+      }
+      setTimeout(() => setToast(null), 3200);
+    }, []);
+
+    const openAttackModal = useCallback((pos) => {
+      const t = state.territories.find(x => x.pos === pos);
+      if (!t || !t.attackable) return;
+      window.__cqMapPaused = true; // stop 3D loop while typing scores
+      setAttackModal({
+        pos,
+        targetName: t.ownerName || t.originName || t.name || 'Adversário',
+        area: t.areaName || '',
+        homeScore: '', awayScore: '', penHome: '', penAway: '',
+        submitting: false,
+      });
+    }, [state.territories]);
+
+    const closeAttackModal = useCallback(() => {
+      window.__cqMapPaused = false;
+      setAttackModal(null);
+    }, []);
+
+    const submitAttack = useCallback(() => {
+      if (!attackModal) return;
+      const hs = parseInt(attackModal.homeScore, 10);
+      const as = parseInt(attackModal.awayScore, 10);
+      if (isNaN(hs) || isNaN(as) || hs < 0 || as < 0) return;
+      const ph = attackModal.penHome === '' ? null : parseInt(attackModal.penHome, 10);
+      const pa = attackModal.penAway === '' ? null : parseInt(attackModal.penAway, 10);
+      const payload = { type: 'cq-attack-execute', pos: attackModal.pos, homeScore: hs, awayScore: as, penHome: ph, penAway: pa };
+      setAttackModal(m => ({ ...m, submitting: true }));
+      if (bcRef.current) { try { bcRef.current.postMessage(payload); } catch (e) {} }
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage(payload, '*');
+        }
+      } catch (e) {}
+      // Safety timeout: if no reply in 2s, close modal + resume 3D loop
+      setTimeout(() => { window.__cqMapPaused = false; setAttackModal(null); }, 2000);
+    }, [attackModal]);
+
+    const territoriesWithClick = state.territories.map(t => ({
+      ...t,
+      onClick: t.attackable ? () => openAttackModal(t.pos) : undefined,
+    }));
+
+    const s = state.stats || {};
+
+    if (!state.territories.length) {
+      return React.createElement('div', { className: 'empty' },
+        React.createElement('div', { style: { fontSize: '48px' } }, '🌍'),
+        React.createElement('div', null,
+          'Nenhum dado do mapa carregado ainda.',
+          React.createElement('br'),
+          'Abra o Modo Conquista na aba principal.'),
+        React.createElement('button', { className: 'btn', onClick: () => window.close() }, 'Fechar')
+      );
+    }
+
+    // Attack modal
+    const modalEl = attackModal && React.createElement('div', { className: 'modal-backdrop', onClick: (e) => { if (e.target.className === 'modal-backdrop' && !attackModal.submitting) closeAttackModal(); } },
+      React.createElement('div', { className: 'modal-card' },
+        React.createElement('h2', { className: 'modal-title' }, '⚔ Atacar território'),
+        React.createElement('div', { className: 'modal-sub' }, attackModal.area ? ('Área: ' + attackModal.area) : 'Registre o placar da partida'),
+        React.createElement('div', { className: 'versus' },
+          React.createElement('div', { className: 'team-box' },
+            React.createElement('div', { className: 'chip', style: { background: s.myColor || '#22e07a', color: s.myColor || '#22e07a' } }),
+            React.createElement('div', { className: 'team-name' }, s.myTeamName || 'Você'),
+            React.createElement('div', { className: 'team-role' }, 'Atacante'),
+          ),
+          React.createElement('div', { className: 'vs' }, 'VS'),
+          React.createElement('div', { className: 'team-box' },
+            React.createElement('div', { className: 'chip', style: { background: '#e0454b', color: '#e0454b' } }),
+            React.createElement('div', { className: 'team-name' }, attackModal.targetName),
+            React.createElement('div', { className: 'team-role' }, 'Defensor'),
+          ),
+        ),
+        React.createElement('div', { className: 'scores' },
+          React.createElement('input', {
+            className: 'score-input', type: 'number', min: '0', placeholder: '0',
+            value: attackModal.homeScore, autoFocus: true, disabled: attackModal.submitting,
+            onChange: (e) => setAttackModal(m => ({ ...m, homeScore: e.target.value })),
+          }),
+          React.createElement('div', { className: 'dash' }, '×'),
+          React.createElement('input', {
+            className: 'score-input', type: 'number', min: '0', placeholder: '0',
+            value: attackModal.awayScore, disabled: attackModal.submitting,
+            onChange: (e) => setAttackModal(m => ({ ...m, awayScore: e.target.value })),
+          }),
+        ),
+        (attackModal.homeScore !== '' && attackModal.awayScore !== '' &&
+          parseInt(attackModal.homeScore, 10) === parseInt(attackModal.awayScore, 10)) &&
+          React.createElement(React.Fragment, null,
+            React.createElement('div', { className: 'pen-hint' },
+              '⚠ Empate. Preencha os pênaltis para decidir.'),
+            React.createElement('div', { className: 'pen-label' }, 'Pênaltis'),
+            React.createElement('div', { className: 'scores' },
+              React.createElement('input', {
+                className: 'score-input', type: 'number', min: '0', placeholder: '0',
+                value: attackModal.penHome, disabled: attackModal.submitting,
+                onChange: (e) => setAttackModal(m => ({ ...m, penHome: e.target.value })),
+              }),
+              React.createElement('div', { className: 'dash' }, '×'),
+              React.createElement('input', {
+                className: 'score-input', type: 'number', min: '0', placeholder: '0',
+                value: attackModal.penAway, disabled: attackModal.submitting,
+                onChange: (e) => setAttackModal(m => ({ ...m, penAway: e.target.value })),
+              }),
+            ),
+          ),
+        React.createElement('div', { className: 'modal-actions' },
+          React.createElement('button', {
+            className: 'btn', disabled: attackModal.submitting,
+            onClick: closeAttackModal,
+          }, 'Cancelar'),
+          React.createElement('button', {
+            className: 'btn btn-primary', disabled: attackModal.submitting ||
+              attackModal.homeScore === '' || attackModal.awayScore === '',
+            onClick: submitAttack,
+          }, attackModal.submitting ? 'Enviando…' : 'Confirmar ⚔'),
+        ),
+      ),
+    );
+
+    return React.createElement(React.Fragment, null,
+      React.createElement('div', { className: 'map-wrap' },
+        React.createElement(window.CqMap3D, {
+          territories: territoriesWithClick,
+          height: '100vh',
+        }),
+      ),
+      React.createElement('div', { className: 'hud' },
+        React.createElement('div', { className: 'hud-title' },
+          React.createElement('div', {
+            className: 'hud-title-chip',
+            style: { background: s.myColor || '#22e07a', boxShadow: '0 0 10px ' + (s.myColor || '#22e07a') },
+          }),
+          React.createElement('div', { className: 'hud-title-name' }, s.myTeamName || 'Sua equipe'),
+        ),
+        React.createElement('div', { className: 'hud-grid' },
+          React.createElement('div', { className: 'hud-cell' },
+            React.createElement('div', { className: 'hud-label' }, 'Dominados'),
+            React.createElement('div', { className: 'hud-value accent' },
+              String(s.dominated || 0),
+              React.createElement('span', { className: 'sub' }, '/' + (s.total || state.territories.length)),
+            ),
+          ),
+          React.createElement('div', { className: 'hud-cell' },
+            React.createElement('div', { className: 'hud-label' }, 'Faltam'),
+            React.createElement('div', { className: 'hud-value' }, String(Math.max(0, (s.total || state.territories.length) - (s.dominated || 0)))),
+          ),
+          React.createElement('div', { className: 'hud-cell' },
+            React.createElement('div', { className: 'hud-label' }, '% conquista'),
+            React.createElement('div', { className: 'hud-value warn' }, (s.pct != null ? s.pct : 0) + '%'),
+          ),
+          React.createElement('div', { className: 'hud-cell' },
+            React.createElement('div', { className: 'hud-label' }, 'Atacáveis'),
+            React.createElement('div', { className: 'hud-value accent' }, String(s.attackable || 0)),
+          ),
+          React.createElement('div', { className: 'hud-cell' },
+            React.createElement('div', { className: 'hud-label' }, 'Partidas'),
+            React.createElement('div', { className: 'hud-value' }, String(s.matchesPlayed || 0)),
+          ),
+          React.createElement('div', { className: 'hud-cell' },
+            React.createElement('div', { className: 'hud-label' }, 'Vitórias'),
+            React.createElement('div', { className: 'hud-value accent' }, String(s.wins || 0)),
+          ),
+          React.createElement('div', { className: 'hud-cell' },
+            React.createElement('div', { className: 'hud-label' }, 'Gols pró'),
+            React.createElement('div', { className: 'hud-value' }, String(s.goalsFor || 0)),
+          ),
+          React.createElement('div', { className: 'hud-cell' },
+            React.createElement('div', { className: 'hud-label' }, 'Gols contra'),
+            React.createElement('div', { className: 'hud-value bad' }, String(s.goalsAgainst || 0)),
+          ),
+        ),
+        (s.attackable || 0) > 0 && React.createElement('div', { className: 'hud-hint' },
+          '⚔ Clique num pino atacável para jogar a partida direto aqui.'),
+      ),
+      React.createElement('div', { className: 'top-actions' },
+        React.createElement('button', { className: 'btn', onClick: () => { try { window.opener && window.opener.focus(); } catch (e) {} } }, '↩ Aba principal'),
+        React.createElement('button', { className: 'btn btn-close', onClick: () => window.close() }, '✕ Fechar'),
+      ),
+      React.createElement('div', { className: 'footer' },
+        'Arraste para girar · roda do mouse para zoom · botão direito para pan'),
+      modalEl,
+      toast && React.createElement('div', { className: 'toast show ' + toast.kind }, toast.text),
+    );
+  }
+
+  function boot() {
+    if (!window.CqMap3D || !window.THREE || !window.THREE.GLTFLoader) {
+      return setTimeout(boot, 100);
+    }
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(React.createElement(FullscreenMap));
+  }
+  boot();
+})();
+</script>
+</body>
+</html>
