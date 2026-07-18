@@ -442,6 +442,18 @@ input:focus{outline:none;}
             <div style="font-size:11px;color:#8b97a5;letter-spacing:.5px;text-transform:uppercase;">Cartas</div>
             <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:22px;margin-top:4px;">{{ cqCardsUnusedCount }}<span style="color:#3a4552;font-size:15px;"> / {{ cqCardsTotalCount }}</span></div>
           </div>
+          <sc-if value="{{ cqHasRival }}" hint-placeholder-val="{{ false }}">
+            <div style="background:linear-gradient(135deg,#2a0f11,#1a0709);border:1px solid #6a2b2f;border-radius:13px;padding:14px;grid-column:span 2;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:14px;">🔥</span>
+                <div style="font-size:11px;color:#e0888a;letter-spacing:.5px;text-transform:uppercase;font-weight:700;">Rival</div>
+                <div style="flex:1;"></div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#f8a5a7;">{{ cqRivalProgress }}/{{ cqRivalProgressGoal }}</div>
+              </div>
+              <div style="font-family:'Space Grotesk';font-weight:700;font-size:17px;margin-top:6px;color:#f4d8da;">{{ cqRivalName }}</div>
+              <div style="font-size:11.5px;color:#c8a8aa;margin-top:4px;line-height:1.4;">{{ cqRivalStatusLabel }}</div>
+            </div>
+          </sc-if>
         </div>
 
         <div style="display:flex;flex-direction:column;gap:16px;">
@@ -897,6 +909,24 @@ input:focus{outline:none;}
               <div style="font-size:12px;color:#c8ad72;margin-top:10px;">{{ modalPenHint }}</div>
             </div>
           </sc-if>
+          <sc-if value="{{ modalIsConquest }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-bottom:20px;padding:14px 16px;background:linear-gradient(140deg,rgba(34,224,122,.06),rgba(244,215,114,.05));border:1px solid rgba(34,224,122,.28);border-radius:13px;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                <div style="font-size:11px;color:{{ modalObjectivesHintColor }};letter-spacing:.5px;text-transform:uppercase;font-weight:700;">🎯 Objetivos da partida</div>
+                <div style="flex:1;"></div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:{{ modalObjectivesHintColor }};">{{ modalObjectivesMetCount }}/{{ modalObjectivesTotal }}</div>
+              </div>
+              <div style="font-size:11.5px;color:#9aa6b2;margin-bottom:12px;line-height:1.4;">{{ modalObjectivesHint }}</div>
+              <div style="display:flex;flex-direction:column;gap:7px;">
+                <sc-for list="{{ modalObjectives }}" as="o" hint-placeholder-count="3">
+                  <div onclick="{{ o.onClick }}" style="{{ o.styleRow }}">
+                    <div style="{{ o.styleBox }}">{{ o.checkChar }}</div>
+                    <div style="{{ o.styleText }}">{{ o.text }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
           <div style="font-size:11px;color:#8b97a5;letter-spacing:.4px;margin-bottom:8px;text-transform:uppercase;font-weight:600;">Status da partida</div>
           <div style="display:flex;gap:8px;">
             <sc-for list="{{ modalStatusOptions }}" as="o" hint-placeholder-count="3">
@@ -1296,18 +1326,42 @@ class Component extends DCLogic {
     let cqPost = null;
     if (phase === 'conquest' && m.homeScore != null && m.awayScore != null) {
       let hs2 = m.homeScore, as2 = m.awayScore;
-      let playerWon = hs2 > as2;
+      let scoreWin = hs2 > as2;
       if (hs2 === as2) {
         const ph2 = m.penHome, pa2 = m.penAway;
-        if (ph2 != null && pa2 != null && ph2 !== pa2) playerWon = ph2 > pa2;
+        if (ph2 != null && pa2 != null && ph2 !== pa2) scoreWin = ph2 > pa2;
         else { alert('Empate. Insira também os pênaltis para desempatar.'); return; }
       }
-      cqPost = { defenderPos: m._cqDefenderPos, playerWon };
-      this.state.conquest.matchHistory = [ ...(this.state.conquest.matchHistory || []), { at: Date.now(), defenderPos: m._cqDefenderPos, homeScore: hs2, awayScore: as2, won: playerWon } ];
+      // Objectives check — conquest only happens when ALL 3 objectives are met.
+      // Winning without meeting them counts as a match win but the territory
+      // doesn't change hands.
+      const objs = m._cqObjectives || [];
+      const done = draft.objectivesDone || [];
+      const allObjectivesMet = objs.length > 0 && objs.every((_, i) => !!done[i]);
+      const conquered = scoreWin && allObjectivesMet;
+      cqPost = { defenderPos: m._cqDefenderPos, playerWon: scoreWin, conquered, objectivesMet: allObjectivesMet };
+      this.state.conquest.matchHistory = [ ...(this.state.conquest.matchHistory || []), {
+        at: Date.now(),
+        defenderPos: m._cqDefenderPos,
+        homeScore: hs2, awayScore: as2,
+        won: scoreWin,
+        conquered,
+        objectivesMet: allObjectivesMet,
+        objectives: objs.map((o, i) => ({ id: o.id, text: o.text, done: !!done[i] })),
+      } ];
       this.state.conquest._matches = (this.state.conquest._matches || []).filter(x => x.id !== matchId);
     }
     this.setState({ modal: { open: false, matchId: null, phase: null, draft: { home: '', away: '', status: 'finished' } } });
-    if (cqPost) { if (cqPost.playerWon) this.cqApplyWin(cqPost.defenderPos); else this.cqApplyLoss(cqPost.defenderPos); }
+    if (cqPost) {
+      if (cqPost.conquered) {
+        this.cqApplyWin(cqPost.defenderPos);
+      } else if (cqPost.playerWon) {
+        // Won the match but didn't fulfil all 3 objectives → no territory
+        this.cqLog('🟡 Vitória sem conquista — objetivos não cumpridos. Nenhum território tomado.', '#f4d772');
+      } else {
+        this.cqApplyLoss(cqPost.defenderPos);
+      }
+    }
   }
 
   // ---------- import / export ----------
@@ -1647,12 +1701,46 @@ class Component extends DCLogic {
       });
       out.onSaveModal = () => this.saveModal();
       out.onCloseModal = () => this.closeModal();
+      // Conquest-only: expose the 3 objectives so the modal can render a
+      // checklist. Toggling a box updates draft.objectivesDone[i].
+      const _isConq = md.phase === 'conquest';
+      const _objs = _isConq ? (m._cqObjectives || []) : [];
+      const _done = (md.draft.objectivesDone || [false, false, false]);
+      out.modalIsConquest = _isConq && _objs.length > 0;
+      out.modalObjectives = _objs.map((o, i) => {
+        const isDone = !!_done[i];
+        return {
+          text: o.text,
+          done: isDone,
+          checkChar: isDone ? '✓' : '',
+          styleRow: 'display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:' + (isDone ? 'rgba(34,224,122,.08)' : '#0c121a') + ';border:1px solid ' + (isDone ? 'rgba(34,224,122,.4)' : '#26313f') + ';cursor:pointer;transition:all .12s;user-select:none;',
+          styleBox: 'width:22px;height:22px;flex-shrink:0;border-radius:6px;background:' + (isDone ? accent : '#141c26') + ';border:1px solid ' + (isDone ? accent : '#37424f') + ';display:flex;align-items:center;justify-content:center;font-family:"Space Grotesk";font-weight:800;font-size:14px;color:#04140b;',
+          styleText: 'flex:1;font-size:12.5px;font-weight:600;color:' + (isDone ? '#e6ebf0' : '#b6bec9') + ';line-height:1.35;',
+          onClick: () => {
+            const cur = (this.state.modal.draft.objectivesDone || [false, false, false]).slice();
+            cur[i] = !cur[i];
+            this.setDraft({ objectivesDone: cur });
+          },
+        };
+      });
+      const _metCount = _done.filter(Boolean).length;
+      out.modalObjectivesMetCount = _metCount;
+      out.modalObjectivesTotal = _objs.length;
+      out.modalObjectivesHintColor = (_metCount === _objs.length && _objs.length > 0) ? accent : '#f4d772';
+      out.modalObjectivesHint = _isConq && _objs.length > 0
+        ? (_metCount === _objs.length
+            ? '✓ Todos os objetivos cumpridos — vencendo, o território é seu.'
+            : ('Cumpra os 3 objetivos + vença a partida para conquistar (' + _metCount + '/' + _objs.length + ')'))
+        : '';
     } else {
       out.modalPhaseLabel = ''; out.modalHomeName = ''; out.modalAwayName = ''; out.modalHome = ''; out.modalAway = '';
       out.onHomeScoreChange = () => {}; out.onAwayScoreChange = () => {}; out.modalStatusOptions = [];
       out.modalShowPens = false; out.modalPenHome = ''; out.modalPenAway = ''; out.modalPenHint = '';
       out.onPenHome = () => {}; out.onPenAway = () => {};
       out.onSaveModal = () => {}; out.onCloseModal = () => this.closeModal();
+      out.modalIsConquest = false; out.modalObjectives = [];
+      out.modalObjectivesMetCount = 0; out.modalObjectivesTotal = 0;
+      out.modalObjectivesHint = ''; out.modalObjectivesHintColor = '#f4d772';
     }
 
     // ----- wizard -----
@@ -1755,15 +1843,16 @@ class Component extends DCLogic {
         const mb = Math.round(b*0.82 + 131*0.18);
         return '#' + [mr,mg,mb].map(v=>v.toString(16).padStart(2,'0')).join('');
       };
+      const RIVAL_LOCK_COLOR = '#5b2a2f';
       out.cqTerritories = cq.territories.map(t => {
         const isMine = t.ownerTeamId === cq.myTeamId;
-        const attackable = !isMine && (adj[t.pos] || []).some(n => cq.territories[n].ownerTeamId === cq.myTeamId);
-        // Simplified two-color scheme: mine → green, everyone else → grey.
-        // Attackable stands out via the pulsing green halo (rendered inside
-        // CqMap3D), not via a distinct fill colour.
+        const isRival = !!(cq.rival && !cq.rival.defeated && t.ownerTeamId === cq.rival.teamId);
+        const attackable = !isMine && !isRival && (adj[t.pos] || []).some(n => cq.territories[n].ownerTeamId === cq.myTeamId);
+        // Simplified colour scheme: mine → green, rival (locked) → dark red,
+        // everyone else → grey. Attackable shows via pulsing halo on the map.
         const MINE_COLOR = '#22e07a';
         const OTHER_COLOR = '#4a5462';
-        const ownerColor = isMine ? MINE_COLOR : OTHER_COLOR;
+        const ownerColor = isMine ? MINE_COLOR : (isRival ? RIVAL_LOCK_COLOR : OTHER_COLOR);
         const wmi = wm[t.pos % wm.length];
         const originName = this.teamName(t.teamId);
         const ownerName = this.teamName(t.ownerTeamId);
@@ -1783,13 +1872,13 @@ class Component extends DCLogic {
           color: tintTerrain(ownerColor),
           shadowColor: '#3a2a12',
           isMine, attackable,
-          stroke: isMine ? '#ffffff' : (attackable ? accent : 'rgba(60,40,15,.55)'),
-          strokeWidth: (isMine || attackable) ? 3 : 1.2,
-          glow: attackable ? ('drop-shadow(0 0 8px ' + accent + ')') : (isMine ? ('drop-shadow(0 0 6px ' + MINE_COLOR + ')') : 'none'),
+          stroke: isMine ? '#ffffff' : (attackable ? accent : (isRival ? '#e0454b' : 'rgba(60,40,15,.55)')),
+          strokeWidth: (isMine || attackable || isRival) ? 3 : 1.2,
+          glow: attackable ? ('drop-shadow(0 0 8px ' + accent + ')') : (isMine ? ('drop-shadow(0 0 6px ' + MINE_COLOR + ')') : (isRival ? 'drop-shadow(0 0 8px #e0454b)' : 'none')),
           cursor: attackable ? 'pointer' : 'default',
           onClick: attackable ? () => this.cqOpenAttack(t.pos) : () => {},
-          badge: conqueredByMe ? '✔' : (isMine ? 'EU' : (attackable ? '⚔' : '')),
-          hasBadge: isMine || attackable,
+          badge: isRival ? '🔒' : (conqueredByMe ? '✔' : (isMine ? 'EU' : (attackable ? '⚔' : ''))),
+          hasBadge: isMine || attackable || isRival,
         };
       });
 
@@ -1815,6 +1904,20 @@ class Component extends DCLogic {
         goalsFor, goalsAgainst,
         goalDiff: goalsFor - goalsAgainst,
       };
+      // Rival panel data
+      if (cq.rival) {
+        out.cqHasRival = true;
+        out.cqRivalName = this.teamName(cq.rival.teamId);
+        out.cqRivalDefeated = !!cq.rival.defeated;
+        out.cqRivalProgress = cq.rival.progress || 0;
+        out.cqRivalProgressGoal = cq.rival.progressGoal || 5;
+        out.cqRivalStatusLabel = cq.rival.defeated
+          ? '💀 Rival derrotado — território liberado'
+          : ('🔒 Território bloqueado até vencer duelo — ' + (cq.rival.progress || 0) + '/' + (cq.rival.progressGoal || 5) + ' até partida obrigatória');
+      } else {
+        out.cqHasRival = false; out.cqRivalName = ''; out.cqRivalDefeated = false;
+        out.cqRivalProgress = 0; out.cqRivalProgressGoal = 5; out.cqRivalStatusLabel = '';
+      }
       // Callback used by the fullscreen map tab to resolve attacks locally
       out.onCqExecuteAttackFromMap = (pos, hs, as, ph, pa) => this.cqExecuteAttackFromMap(pos, hs, as, ph, pa);
 
@@ -2173,6 +2276,11 @@ class Component extends DCLogic {
     const rosters = {};
     teams.forEach(t => { rosters[t.id] = []; });
     const myTeamId = teams[myIdx] ? teams[myIdx].id : teams[0].id;
+    // Pick a rival at random from the remaining teams. The rival's territory
+    // is locked until the player beats them in a direct duel (Patch 3).
+    const enemyIds = teams.filter((_, i) => i !== myIdx).map(t => t.id);
+    const rivalTeamId = enemyIds.length ? enemyIds[Math.floor(Math.random() * enemyIds.length)] : null;
+    const rivalName = rivalTeamId ? this.teamName(rivalTeamId) : '';
     return {
       cols: cols,
       cardsPerWin: cardsPerWin || 2,
@@ -2180,10 +2288,19 @@ class Component extends DCLogic {
       territories,
       rosters,
       cards: [],
-      log: [{ msg: 'Campanha iniciada. Cadastre seu elenco do EA FC 26 no painel "Meu elenco" e conquiste os vizinhos.', color: '#22e07a', ts: Date.now() }],
+      log: [
+        { msg: 'Campanha iniciada. Cadastre seu elenco do EA FC 26 no painel "Meu elenco" e conquiste os vizinhos.', color: '#22e07a', ts: Date.now() },
+        rivalTeamId ? { msg: '🔥 Rival sorteado: ' + rivalName + '. O território dele fica bloqueado até você vencer um duelo direto.', color: '#e0454b', ts: Date.now() } : null,
+      ].filter(Boolean),
       status: 'playing',
       endShown: false,
       matchHistory: [],
+      rival: rivalTeamId ? {
+        teamId: rivalTeamId,
+        defeated: false,
+        progress: 0,        // conquests since last rival encounter
+        progressGoal: 5,    // reach this → forced rival match (Patch 3)
+      } : null,
     };
   }
   cqOwnedByPlayer() {
@@ -2213,16 +2330,75 @@ class Component extends DCLogic {
   cqOpenAttack(defenderPos) {
     const c = this.state.conquest; if (!c || c.status !== 'playing') return;
     if (!this.cqIsFrontier(defenderPos)) return;
+    // Rival territory is locked until the rival is defeated in a duel
+    if (this.cqIsRivalTerritory(defenderPos) && c.rival && !c.rival.defeated) {
+      this.cqLog('🔒 Território do rival ' + this.teamName(c.rival.teamId) + ' — vença o duelo direto contra ele antes.', '#e0454b');
+      return;
+    }
     const defender = c.territories[defenderPos];
     const mid = 'cq-' + Date.now();
     // create a virtual match — home = me, away = defender team
     // stash it so saveModal can find it
     if (!c._matches) c._matches = [];
-    const m = { id: mid, homeId: c.myTeamId, awayId: defender.teamId, homeScore: null, awayScore: null, status: 'scheduled', _cqDefenderPos: defenderPos };
+    const objectives = this.cqRollObjectives(3);
+    const m = { id: mid, homeId: c.myTeamId, awayId: defender.teamId, homeScore: null, awayScore: null, status: 'scheduled', _cqDefenderPos: defenderPos, _cqObjectives: objectives };
     c._matches.push(m);
     this.setState({
-      modal: { open: true, matchId: mid, phase: 'conquest', draft: { home: '', away: '', status: 'finished', penHome: '', penAway: '' } },
+      modal: { open: true, matchId: mid, phase: 'conquest', draft: { home: '', away: '', status: 'finished', penHome: '', penAway: '', objectivesDone: [false, false, false] } },
     });
+  }
+  // Big pool of EA FC 26–realistic in-match objectives. The player has to
+  // fulfil 3 of these (randomly sorted per attack) to actually conquer a
+  // territory. Winning without completing all 3 counts as a "moral" win.
+  cqObjectivesPool() {
+    return [
+      { id: 'headgoal',            text: 'Marque pelo menos 1 gol de cabeça' },
+      { id: 'possession55',        text: 'Termine com posse de bola ≥ 55%' },
+      { id: 'threeScorers',        text: 'Marque com 3 jogadores diferentes' },
+      { id: 'cleanSheet',          text: 'Não sofra nenhum gol' },
+      { id: 'longshot',            text: 'Marque um gol de fora da área' },
+      { id: 'earlyGoal',           text: 'Abra o placar antes dos 15 minutos' },
+      { id: 'lateGoal',            text: 'Marque um gol depois dos 80 minutos' },
+      { id: 'shots5onTarget',      text: 'Termine com 5+ finalizações no gol' },
+      { id: 'shots15total',        text: 'Termine com 15+ finalizações totais' },
+      { id: 'freeKickGoal',        text: 'Marque um gol de falta' },
+      { id: 'penaltyGoal',         text: 'Marque um gol de pênalti' },
+      { id: 'aerialDuels60',       text: 'Vença 60%+ dos duelos aéreos' },
+      { id: 'passAccuracy85',      text: 'Termine com precisão de passe ≥ 85%' },
+      { id: 'counterGoal',         text: 'Marque um gol de contra-ataque' },
+      { id: 'tackles8',            text: 'Faça pelo menos 8 desarmes' },
+      { id: 'dribbles8',           text: 'Realize 8+ dribles bem-sucedidos' },
+      { id: 'noCard',              text: 'Termine a partida sem receber cartão' },
+      { id: 'weakFootGoal',        text: 'Marque um gol com o pé mais fraco' },
+      { id: 'volleyGoal',          text: 'Marque um gol de voleio ou bicicleta' },
+      { id: 'threeSubs',           text: 'Realize as 3 substituições disponíveis' },
+      { id: 'skillMoveGoal',       text: 'Marque um gol precedido por finta (skill move)' },
+      { id: 'crossGoal',           text: 'Marque um gol vindo de cruzamento' },
+      { id: 'winByTwo',            text: 'Vença com diferença de 2+ gols' },
+      { id: 'twoAssistsSame',      text: 'Faça 2 assistências com o mesmo jogador' },
+      { id: 'blockShots3',         text: 'Bloqueie 3+ finalizações do adversário' },
+      { id: 'saves5',              text: 'Seu goleiro faz 5+ defesas' },
+      { id: 'benchGoal',           text: 'Marque um gol com jogador que entrou do banco' },
+      { id: 'firstFiveGoal',       text: 'Marque um gol nos primeiros 5 minutos' },
+      { id: 'crossesAccurate5',    text: 'Acerte 5+ cruzamentos' },
+      { id: 'defenderGoal',        text: 'Marque um gol com um zagueiro' },
+      { id: 'oneOnOneScored',      text: 'Converta pelo menos 1 mano-a-mano' },
+      { id: 'nomega',              text: 'Não permita nenhuma finalização no seu gol' },
+    ];
+  }
+  cqRollObjectives(n) {
+    const pool = this.cqObjectivesPool().slice();
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    return pool.slice(0, n);
+  }
+  cqIsRivalTerritory(tid) {
+    const c = this.state.conquest;
+    if (!c || !c.rival) return false;
+    const t = c.territories[tid];
+    return !!(t && t.ownerTeamId === c.rival.teamId);
   }
   // Programmatic attack executor used by the fullscreen 3D map tab: takes
   // scores directly, applies win/loss and logs to matchHistory, without
