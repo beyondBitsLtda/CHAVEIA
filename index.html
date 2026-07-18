@@ -14,6 +14,7 @@
 <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
 <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="./catalog.js"></script>
 </style>
 <style>
 *{box-sizing:border-box;}
@@ -110,7 +111,19 @@ input:focus{outline:none;}
           <sc-if value="{{ isWStep2 }}" hint-placeholder-val="{{ false }}">
             <div style="animation:fadeIn .3s;">
               <div style="font-family:'Space Grotesk';font-weight:700;font-size:20px;margin-bottom:5px;">Participantes</div>
-              <div style="color:#8b97a5;font-size:13px;margin-bottom:20px;">Defina a quantidade e nomeie os times.</div>
+              <div style="color:#8b97a5;font-size:13px;margin-bottom:20px;">Escolha entre digitar os times manualmente ou puxar clubes reais do EA FC 26.</div>
+              <div style="display:flex;gap:10px;margin-bottom:22px;">
+                <button onclick="{{ onSelectCustomMode }}" style="{{ customModeStyle }}">
+                  <div style="font-size:18px;margin-bottom:4px;">⚡</div>
+                  <div style="font-size:14px;">Personalizado</div>
+                  <div style="font-size:11px;font-weight:500;color:#8b97a5;margin-top:2px;">Digite os nomes livremente</div>
+                </button>
+                <button onclick="{{ onSelectRealMode }}" style="{{ realModeStyle }}">
+                  <div style="font-size:18px;margin-bottom:4px;">📚</div>
+                  <div style="font-size:14px;">Times reais</div>
+                  <div style="font-size:11px;font-weight:500;color:#8b97a5;margin-top:2px;">Catálogo de 100 clubes do FC 26</div>
+                </button>
+              </div>
               <div style="display:flex;align-items:center;gap:14px;margin-bottom:22px;">
                 <span style="font-size:13px;color:#b7c2ce;font-weight:600;">Número de times</span>
                 <div style="display:flex;align-items:center;gap:10px;background:#0c121a;border:1px solid #26313f;border-radius:11px;padding:5px;">
@@ -119,14 +132,40 @@ input:focus{outline:none;}
                   <button onclick="{{ onCountInc }}" style="width:34px;height:34px;border-radius:8px;background:#182029;border:1px solid #26313f;color:#cdd6df;font-size:18px;font-weight:700;cursor:pointer;">+</button>
                 </div>
               </div>
-              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;max-height:340px;overflow-y:auto;padding-right:4px;">
-                <sc-for list="{{ wTeams }}" as="t" hint-placeholder-count="8">
-                  <div style="display:flex;align-items:center;gap:9px;background:#0c121a;border:1px solid #1e2733;border-radius:10px;padding:8px 11px;">
-                    <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:{{ accent }};font-weight:700;width:20px;">{{ t.numLabel }}</span>
-                    <input value="{{ t.name }}" placeholder="{{ t.ph }}" onchange="{{ t.onName }}" style="flex:1;background:transparent;border:none;color:#e6ebf0;font-size:14px;width:100%;">
+              <sc-if value="{{ wIsCustomMode }}" hint-placeholder-val="{{ true }}">
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;max-height:340px;overflow-y:auto;padding-right:4px;">
+                  <sc-for list="{{ wTeams }}" as="t" hint-placeholder-count="8">
+                    <div style="display:flex;align-items:center;gap:9px;background:#0c121a;border:1px solid #1e2733;border-radius:10px;padding:8px 11px;">
+                      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:{{ accent }};font-weight:700;width:20px;">{{ t.numLabel }}</span>
+                      <input value="{{ t.name }}" placeholder="{{ t.ph }}" onchange="{{ t.onName }}" style="flex:1;background:transparent;border:none;color:#e6ebf0;font-size:14px;width:100%;">
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ wIsRealMode }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:14px 16px;background:linear-gradient(135deg,#0c121a,#141c26);border:1px solid #26313f;border-radius:12px;">
+                  <div style="font-size:22px;">📋</div>
+                  <div style="flex:1;">
+                    <div style="font-family:'Space Grotesk';font-weight:700;font-size:14px;color:#e6ebf0;">Catálogo FC 26</div>
+                    <div style="font-size:11.5px;color:#8b97a5;margin-top:2px;">100 clubes reais das principais ligas. Elencos oficiais para os 15 top times.</div>
                   </div>
-                </sc-for>
-              </div>
+                  <button onclick="{{ onOpenCatalog }}" style="padding:10px 16px;border-radius:10px;background:{{ accent }};border:none;color:#04140b;font-family:'Space Grotesk';font-weight:800;font-size:13px;cursor:pointer;white-space:nowrap;">Abrir catálogo ↗</button>
+                </div>
+                <sc-if value="{{ wPickedFromCatalog.length }}" hint-placeholder-val="{{ 0 }}">
+                  <div style="font-size:11px;color:#8b97a5;letter-spacing:.4px;margin-bottom:10px;text-transform:uppercase;font-weight:700;">Times selecionados ({{ wPickedFromCatalog.length }})</div>
+                  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;max-height:300px;overflow-y:auto;padding-right:4px;">
+                    <sc-for list="{{ wPickedFromCatalog }}" as="p" hint-placeholder-count="3">
+                      <div style="display:flex;align-items:center;gap:10px;background:#0c121a;border:1px solid #1e2733;border-radius:10px;padding:9px 12px;">
+                        <div style="flex:1;min-width:0;">
+                          <div style="font-family:'Space Grotesk';font-weight:700;font-size:13.5px;color:#e6ebf0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ p.name }}</div>
+                          <div style="font-size:10.5px;color:#8b97a5;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ p.league }} · <span style="color:{{ p.tierColor }};font-weight:700;">{{ p.tier }}</span> · <span style="font-family:'JetBrains Mono',monospace;">OVR {{ p.ovr }}</span></div>
+                        </div>
+                        <button onclick="{{ p.onRemove }}" style="width:28px;height:28px;border-radius:7px;background:rgba(224,69,75,.15);border:1px solid rgba(224,69,75,.35);color:#f8a5a7;font-size:14px;cursor:pointer;flex-shrink:0;">×</button>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+              </sc-if>
             </div>
           </sc-if>
 
@@ -876,6 +915,49 @@ input:focus{outline:none;}
       </div>
     </sc-if>
 
+  <sc-if value="{{ catalogModalOpen }}" hint-placeholder-val="{{ false }}">
+    <div onclick="{{ onCatalogClose }}" style="position:fixed;inset:0;z-index:52;background:rgba(4,7,11,.78);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:24px;animation:fadeIn .18s;">
+      <div onclick="{{ stopProp }}" style="width:100%;max-width:720px;max-height:88vh;background:#0f1620;border:1px solid #253242;border-radius:18px;overflow:hidden;box-shadow:0 30px 90px rgba(0,0,0,.65);display:flex;flex-direction:column;">
+        <div style="display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid #1c2530;">
+          <div style="font-size:22px;">📚</div>
+          <div style="flex:1;">
+            <div style="font-family:'Space Grotesk';font-weight:700;font-size:16px;">Catálogo FC 26</div>
+            <div style="font-size:11.5px;color:#7a8794;margin-top:1px;">{{ catalogTotalShown }} times · {{ catalogPickedCount }} selecionados</div>
+          </div>
+          <button onclick="{{ onCatalogClose }}" style="width:34px;height:34px;border-radius:9px;background:#141c26;border:1px solid #26313f;color:#cdd6df;font-size:17px;cursor:pointer;">×</button>
+        </div>
+        <div style="padding:14px 20px 0;">
+          <input value="{{ catalogSearchValue }}" placeholder="🔍 Buscar por nome ou liga…" onchange="{{ onCatalogSearch }}" style="width:100%;padding:11px 14px;background:#0a0e13;border:1px solid #26313f;border-radius:11px;color:#e6ebf0;font-size:14px;outline:none;font-family:'Space Grotesk';">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;">
+            <sc-for list="{{ catalogTierChips }}" as="c" hint-placeholder-count="4">
+              <button onclick="{{ c.onSelect }}" style="{{ c.style }}">{{ c.label }}</button>
+            </sc-for>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;padding-bottom:12px;border-bottom:1px solid #1c2530;">
+            <sc-for list="{{ catalogLeagueChips }}" as="c" hint-placeholder-count="6">
+              <button onclick="{{ c.onSelect }}" style="{{ c.style }}">{{ c.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:12px 20px 18px;display:flex;flex-direction:column;gap:8px;">
+          <sc-for list="{{ catalogTeamsList }}" as="t" hint-placeholder-count="10">
+            <div style="{{ t.rowStyle }}">
+              <div style="width:36px;height:36px;border-radius:9px;background:#141c26;border:1px solid #263140;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-weight:800;font-size:13px;color:{{ t.tierColor }};flex-shrink:0;">{{ t.ovr }}</div>
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
+                  <span style="font-family:'Space Grotesk';font-weight:700;font-size:14px;color:#e6ebf0;">{{ t.name }}</span>
+                  <span style="font-size:11px;color:{{ t.tierColor }};">{{ t.tierBadge }}</span>
+                </div>
+                <div style="font-size:11px;color:#8b97a5;">{{ t.league }} <span style="color:#3a4552;">·</span> {{ t.rosterLabel }}</div>
+              </div>
+              <button onclick="{{ t.onAdd }}" style="{{ t.btnStyle }}">{{ t.statusLabel }}</button>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
   <sc-if value="{{ modalOpen }}" hint-placeholder-val="{{ false }}">
     <div onclick="{{ onCloseModal }}" style="position:fixed;inset:0;z-index:50;background:rgba(4,7,11,.74);backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .18s;">
       <div onclick="{{ stopProp }}" style="width:100%;max-width:430px;background:#0f1620;border:1px solid #253242;border-radius:20px;overflow:hidden;box-shadow:0 30px 90px rgba(0,0,0,.65);">
@@ -996,11 +1078,18 @@ class Component extends DCLogic {
       step: 1,
       format: format || 'knockout',
       count: 8,
-      teams: Array.from({ length: 8 }, () => ({ name: '' })),
+      teams: Array.from({ length: 8 }, () => ({ name: '', catalogId: null })),
       config: this.freshConfig(),
       myTeamPick: 0,
       cardsPerWin: 2,
       gridCols: 8,
+      teamMode: 'custom', // 'custom' (digitar) or 'real' (catálogo FC 26)
+      catalogModal: {
+        open: false,
+        search: '',
+        league: 'all',
+        tier: 'all',
+      },
     };
   }
   buildMockState() {
@@ -1405,12 +1494,63 @@ class Component extends DCLogic {
     n = Math.max(2, Math.min(125, n | 0));
     this.setState(s => {
       const teams = s.wizard.teams.slice(0, n);
-      while (teams.length < n) teams.push({ name: '' });
+      while (teams.length < n) teams.push({ name: '', catalogId: null });
       return { wizard: { ...s.wizard, count: n, teams } };
     });
   }
   setTeamName(i, val) {
-    this.setState(s => { const teams = s.wizard.teams.slice(); teams[i] = { name: val }; return { wizard: { ...s.wizard, teams } }; });
+    this.setState(s => {
+      const teams = s.wizard.teams.slice();
+      // Editing the name manually clears the catalog link (user overriding)
+      teams[i] = { name: val, catalogId: null };
+      return { wizard: { ...s.wizard, teams } };
+    });
+  }
+  // Team mode toggle (custom vs. FC 26 catalog)
+  setTeamMode(mode) {
+    this.setWiz({ teamMode: mode === 'real' ? 'real' : 'custom' });
+  }
+  // Catalog modal open/close + filters
+  openCatalog() {
+    this.setState(s => ({ wizard: { ...s.wizard, catalogModal: { ...s.wizard.catalogModal, open: true } } }));
+  }
+  closeCatalog() {
+    this.setState(s => ({ wizard: { ...s.wizard, catalogModal: { ...s.wizard.catalogModal, open: false } } }));
+  }
+  setCatalogFilter(patch) {
+    this.setState(s => ({ wizard: { ...s.wizard, catalogModal: { ...s.wizard.catalogModal, ...patch } } }));
+  }
+  // Add a catalog team into the first empty slot (or expand count if full).
+  // If the team was already added, this is a no-op (toggle to remove is a
+  // separate button in the added-teams list).
+  addTeamFromCatalog(catalogId) {
+    const CAT = window.FC_TEAM_CATALOG || [];
+    const t = CAT.find(x => x.id === catalogId);
+    if (!t) return;
+    this.setState(s => {
+      const teams = s.wizard.teams.slice();
+      // Already present? bail
+      if (teams.some(x => x.catalogId === catalogId)) return {};
+      // Find first empty slot
+      let idx = teams.findIndex(x => !x.name && !x.catalogId);
+      if (idx === -1) {
+        // No empty slot inside current count → grow by 1 (respecting limits)
+        if (teams.length >= 125) return {};
+        teams.push({ name: t.name, catalogId: t.id });
+        return { wizard: { ...s.wizard, teams, count: teams.length } };
+      }
+      teams[idx] = { name: t.name, catalogId: t.id };
+      return { wizard: { ...s.wizard, teams } };
+    });
+  }
+  removeTeamFromCatalog(catalogId) {
+    this.setState(s => {
+      const teams = s.wizard.teams.slice();
+      const idx = teams.findIndex(x => x.catalogId === catalogId);
+      if (idx === -1) return {};
+      teams[idx] = { name: '', catalogId: null };
+      return { wizard: { ...s.wizard, teams } };
+    });
   }
   moveTiebreak(i, dir) {
     this.setState(s => {
@@ -1432,7 +1572,11 @@ class Component extends DCLogic {
   }
   generate() {
     const w = this.state.wizard;
-    const teams = w.teams.slice(0, w.count).map((t, i) => ({ id: 't' + (i + 1), name: (t.name || '').trim() || ('Time ' + (i + 1)) }));
+    const teams = w.teams.slice(0, w.count).map((t, i) => ({
+      id: 't' + (i + 1),
+      name: (t.name || '').trim() || ('Time ' + (i + 1)),
+      catalogId: t.catalogId || null,
+    }));
     const base = { screen: 'tournament', format: w.format, config: w.config, teams, knockout: { matches: [], rounds: 0 }, league: { matches: [] }, groups: [], groupsKnockout: null, groupsEditor: { open: false, assignment: {} }, modal: { open: false, matchId: null, phase: null, draft: { home: '', away: '', status: 'finished' } } };
     if (w.format === 'knockout') base.knockout = this.genKnockout(teams);
     else if (w.format === 'league') base.league = this.genLeague(teams);
@@ -1758,7 +1902,99 @@ class Component extends DCLogic {
     out.onQualify = e => this.setWizConfig({ qualifyPerGroup: Math.max(1, parseInt(e.target.value, 10) || 1) });
     out.onCountDec = () => this.setWizCount(w.count - 1);
     out.onCountInc = () => this.setWizCount(w.count + 1);
-    out.wTeams = w.teams.map((t, i) => ({ name: t.name, ph: 'Time ' + (i + 1), numLabel: (i + 1) + '.', onName: e => this.setTeamName(i, e.target.value) }));
+    out.wTeams = w.teams.map((t, i) => ({
+      name: t.name,
+      catalogId: t.catalogId,
+      ph: 'Time ' + (i + 1),
+      numLabel: (i + 1) + '.',
+      isFromCatalog: !!t.catalogId,
+      onName: e => this.setTeamName(i, e.target.value),
+    }));
+
+    // ---- Team mode (custom vs. FC 26 catalogue) + catalog modal state -----
+    out.wTeamMode = w.teamMode || 'custom';
+    out.wIsCustomMode = (w.teamMode || 'custom') === 'custom';
+    out.wIsRealMode = w.teamMode === 'real';
+    const modeBtn = (active) => 'flex:1;padding:14px 12px;border-radius:11px;border:1px solid ' + (active ? accent : '#26313f') + ';background:' + (active ? 'rgba(34,224,122,.08)' : '#0c121a') + ';color:#e6ebf0;font-family:"Space Grotesk";font-weight:700;font-size:13px;cursor:pointer;transition:all .15s;text-align:left;';
+    out.customModeStyle = modeBtn(out.wIsCustomMode);
+    out.realModeStyle = modeBtn(out.wIsRealMode);
+    out.onSelectCustomMode = () => this.setTeamMode('custom');
+    out.onSelectRealMode = () => this.setTeamMode('real');
+    out.onOpenCatalog = () => this.openCatalog();
+
+    // List of teams already picked from the catalog (for "real" mode)
+    const catAll = (typeof window !== 'undefined' && window.FC_TEAM_CATALOG) || [];
+    const CAT_BY_ID = {};
+    catAll.forEach(t => { CAT_BY_ID[t.id] = t; });
+    out.wPickedFromCatalog = (w.teams || [])
+      .map((t, i) => (t.catalogId ? { i, catalogId: t.catalogId, def: CAT_BY_ID[t.catalogId] } : null))
+      .filter(Boolean)
+      .map(item => {
+        const tier = item.def && item.def.tier;
+        const tierBadge = tier === 'top' ? '💎 Top' : tier === 'mid' ? '⚽ Médio' : '🌱 Small';
+        const tierColor = tier === 'top' ? '#22e07a' : tier === 'mid' ? '#f4d772' : '#8b97a5';
+        return {
+          catalogId: item.catalogId,
+          name: item.def ? item.def.name : '(?)',
+          league: item.def ? item.def.league : '',
+          tier: tierBadge,
+          tierColor,
+          ovr: item.def ? item.def.ovr : 70,
+          onRemove: () => this.removeTeamFromCatalog(item.catalogId),
+        };
+      });
+
+    // ---- Catalog modal (browser of FC 26 teams) --------------------------
+    const cm = w.catalogModal || { open: false, search: '', league: 'all', tier: 'all' };
+    out.catalogModalOpen = !!cm.open;
+    out.catalogSearchValue = cm.search || '';
+    out.onCatalogSearch = e => this.setCatalogFilter({ search: e.target.value });
+    out.onCatalogClose = () => this.closeCatalog();
+    // League chips
+    const leagues = Array.from(new Set(catAll.map(t => t.league)));
+    const chipStyle = (active) => 'padding:6px 12px;border-radius:99px;border:1px solid ' + (active ? accent : '#263140') + ';background:' + (active ? 'rgba(34,224,122,.14)' : '#141c26') + ';color:' + (active ? accent : '#cdd6df') + ';font-size:11.5px;font-weight:700;font-family:"Space Grotesk";cursor:pointer;white-space:nowrap;transition:all .12s;';
+    out.catalogLeagueChips = [
+      { key: 'all', label: 'Todas as ligas', style: chipStyle(cm.league === 'all'), onSelect: () => this.setCatalogFilter({ league: 'all' }) },
+    ].concat(leagues.map(l => ({
+      key: l, label: l, style: chipStyle(cm.league === l), onSelect: () => this.setCatalogFilter({ league: l }),
+    })));
+    out.catalogTierChips = [
+      { key: 'all', label: 'Todos os níveis', style: chipStyle(cm.tier === 'all'), onSelect: () => this.setCatalogFilter({ tier: 'all' }) },
+      { key: 'top', label: '💎 Top', style: chipStyle(cm.tier === 'top'), onSelect: () => this.setCatalogFilter({ tier: 'top' }) },
+      { key: 'mid', label: '⚽ Médio', style: chipStyle(cm.tier === 'mid'), onSelect: () => this.setCatalogFilter({ tier: 'mid' }) },
+      { key: 'low', label: '🌱 Small', style: chipStyle(cm.tier === 'low'), onSelect: () => this.setCatalogFilter({ tier: 'low' }) },
+    ];
+    // Apply filters
+    const q = (cm.search || '').trim().toLowerCase();
+    const alreadyPickedIds = new Set((w.teams || []).map(t => t.catalogId).filter(Boolean));
+    out.catalogTeamsList = catAll
+      .filter(t => cm.league === 'all' || t.league === cm.league)
+      .filter(t => cm.tier === 'all' || t.tier === cm.tier)
+      .filter(t => !q || t.name.toLowerCase().includes(q) || t.league.toLowerCase().includes(q))
+      .map(t => {
+        const already = alreadyPickedIds.has(t.id);
+        const tierBadge = t.tier === 'top' ? '💎' : t.tier === 'mid' ? '⚽' : '🌱';
+        const tierColor = t.tier === 'top' ? '#22e07a' : t.tier === 'mid' ? '#f4d772' : '#8b97a5';
+        const rosterCount = ((typeof window !== 'undefined' && window.FC_TEAM_ROSTERS && window.FC_TEAM_ROSTERS[t.id]) || []).length;
+        return {
+          id: t.id,
+          name: t.name,
+          league: t.league,
+          tier: t.tier,
+          tierBadge,
+          tierColor,
+          ovr: String(t.ovr),
+          hasRoster: rosterCount > 0,
+          rosterLabel: rosterCount > 0 ? ('✓ ' + rosterCount + ' jog.') : '· elenco vazio',
+          already,
+          statusLabel: already ? '✓ Adicionado' : 'Adicionar',
+          rowStyle: 'display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;background:' + (already ? 'rgba(34,224,122,.06)' : '#0c121a') + ';border:1px solid ' + (already ? 'rgba(34,224,122,.3)' : '#1e2733') + ';cursor:' + (already ? 'default' : 'pointer') + ';transition:all .12s;opacity:' + (already ? '.75' : '1') + ';',
+          btnStyle: 'padding:6px 12px;border-radius:7px;background:' + (already ? '#263140' : accent) + ';border:none;color:' + (already ? '#8b97a5' : '#04140b') + ';font-size:11.5px;font-weight:800;font-family:"Space Grotesk";cursor:' + (already ? 'default' : 'pointer') + ';white-space:nowrap;',
+          onAdd: already ? () => {} : () => this.addTeamFromCatalog(t.id),
+        };
+      });
+    out.catalogTotalShown = out.catalogTeamsList.length;
+    out.catalogPickedCount = alreadyPickedIds.size;
 
     const stepLabels = ['Formato', 'Participantes', 'Regras', 'Revisão'];
     out.wizardSteps = stepLabels.map((l, i) => {
@@ -2272,9 +2508,21 @@ class Component extends DCLogic {
     }));
     // Only track the player's own roster. Enemy team rosters are unknown
     // (they represent the user's real EA FC 26 clubs). The user registers
-    // their own squad manually.
+    // their own squad manually — UNLESS the team came from the FC 26 catalog,
+    // in which case we seed a real roster from window.FC_TEAM_ROSTER(catalogId).
     const rosters = {};
-    teams.forEach(t => { rosters[t.id] = []; });
+    teams.forEach(t => {
+      const cat = t.catalogId && typeof window !== 'undefined' && window.FC_TEAM_ROSTER;
+      const preLoaded = cat ? window.FC_TEAM_ROSTER(t.catalogId) : [];
+      // Map catalog roster shape → in-game roster shape (each roster entry
+      // gets a simple id so it can be moved/removed).
+      rosters[t.id] = (preLoaded || []).map((p, idx) => ({
+        id: 'p' + t.id + '_' + idx,
+        name: p.name,
+        pos: p.pos,
+        ovr: p.ovr,
+      }));
+    });
     const myTeamId = teams[myIdx] ? teams[myIdx].id : teams[0].id;
     // Pick a rival at random from the remaining teams. The rival's territory
     // is locked until the player beats them in a direct duel (Patch 3).
