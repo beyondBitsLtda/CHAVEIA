@@ -11,9 +11,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
-<script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-<script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="./catalog.js"></script>
 </style>
 <style>
@@ -505,9 +502,9 @@ input:focus{outline:none;}
               <span style="font-size:11.5px;color:#8b97a5;">Clique num território marcado com ⚔ para atacar</span>
               <button onclick="{{ onOpenCardsModal }}" style="display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:9px;background:linear-gradient(135deg,#f4d772,#a8801f);border:1px solid #d4b04a;color:#2a1a00;font-size:12.5px;font-weight:800;font-family:'Space Grotesk';cursor:pointer;box-shadow:0 4px 12px rgba(212,176,74,.28);" style-hover="filter:brightness(1.08);">🎴 Cartas <span style="padding:1px 7px;border-radius:99px;background:rgba(0,0,0,.35);color:#fff;font-family:'JetBrains Mono',monospace;font-size:11px;">{{ cqCardsUnusedCount }}/{{ cqCardsTotalCount }}</span></button>
             </div>
-            <x-import component-from-global-scope="CqMap3D" from="./cq-map-3d.jsx" territories="{{ cqTerritories }}" hint-size="100%,400px"></x-import>
+            <x-import component-from-global-scope="CqMap2D" from="./cq-map-2d.jsx" territories="{{ cqTerritories }}" hint-size="100%,540px"></x-import>
             <div style="margin-top:12px;font-size:11px;color:#7f8b99;line-height:1.5;">
-              Arraste para girar o mapa, use a roda do mouse para aproximar. Só é possível atacar territórios inimigos que fazem fronteira com você (marcados com ⚔).
+              Arraste para navegar o mapa, use a roda do mouse para aproximar. Só é possível atacar territórios inimigos que fazem fronteira com você (marcados com ⚔).
             </div>
           </div>
 
