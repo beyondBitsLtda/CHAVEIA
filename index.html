@@ -28,6 +28,7 @@ input:focus{outline:none;}
 ::-webkit-scrollbar-thumb:hover{background:#334153;}
 ::-webkit-scrollbar-track{background:transparent;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+@keyframes goldenGoalPulse{0%,100%{box-shadow:0 20px 50px rgba(224,69,75,.35),0 0 0 1px rgba(0,0,0,.4);}50%{box-shadow:0 20px 50px rgba(224,69,75,.6),0 0 0 1px rgba(224,69,75,.3),0 0 40px rgba(224,69,75,.4);}}
 @keyframes pulseDot{0%,100%{opacity:1;}50%{opacity:.35;}}
 @keyframes cardReveal{0%{opacity:0;transform:scale(.3) rotateY(180deg);}55%{opacity:1;transform:scale(1.1) rotateY(0);}100%{opacity:1;transform:scale(1) rotateY(0);}}
 @keyframes cardGlow{0%,100%{filter:drop-shadow(0 0 12px rgba(244,215,114,.4));}50%{filter:drop-shadow(0 0 32px rgba(244,215,114,.85));}}
@@ -915,6 +916,32 @@ input:focus{outline:none;}
       </div>
     </sc-if>
 
+  <sc-if value="{{ cqGoldenGoalActive }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;top:22px;left:50%;transform:translateX(-50%);z-index:60;background:linear-gradient(135deg,#2a0f11 0%,#1a0810 100%);border:1.5px solid #e0454b;border-radius:14px;padding:14px 18px;min-width:380px;max-width:520px;box-shadow:0 20px 50px rgba(224,69,75,.35),0 0 0 1px rgba(0,0,0,.4);font-family:'Space Grotesk';animation:goldenGoalPulse 1.6s ease-in-out infinite;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <div style="font-size:20px;">⚽</div>
+        <div style="flex:1;">
+          <div style="font-size:11px;color:#f8a5a7;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">Gol de Ouro — Rival</div>
+          <div style="font-family:'Space Grotesk';font-weight:800;font-size:16px;color:#f4d8da;line-height:1.1;">{{ cqGoldenGoalRivalName }}</div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-weight:800;font-size:28px;color:{{ cqGoldenGoalUrgentColor }};line-height:1;">{{ cqGoldenGoalTimer }}</div>
+      </div>
+      <div style="height:6px;background:rgba(255,255,255,.08);border-radius:99px;overflow:hidden;margin-bottom:10px;">
+        <div style="height:100%;width:{{ cqGoldenGoalPct }};background:linear-gradient(90deg,#e0454b,#f4d772);border-radius:99px;transition:width .3s linear;"></div>
+      </div>
+      <div style="font-size:11.5px;color:#c8a8aa;margin-bottom:10px;line-height:1.4;">
+        Marque o gol de ouro no EA FC 26 pra parar o sangramento. Cada minuto = 1 território perdido. <span style="color:#f8a5a7;font-weight:700;">Já perdeu: {{ cqGoldenGoalTaken }}</span>
+      </div>
+      <sc-if value="{{ cqGoldenGoalTakenList }}" hint-placeholder-val="{{ '' }}">
+        <div style="font-size:10.5px;color:#8b7a7c;margin-bottom:12px;font-style:italic;">→ {{ cqGoldenGoalTakenList }}</div>
+      </sc-if>
+      <div style="display:flex;gap:8px;">
+        <button onclick="{{ onCqScoreGoldenGoal }}" style="flex:1.5;padding:9px 12px;border-radius:9px;background:linear-gradient(135deg,#22e07a,#1a9d55);border:none;color:#04140b;font-family:'Space Grotesk';font-weight:800;font-size:12.5px;cursor:pointer;box-shadow:0 4px 14px rgba(34,224,122,.35);">⚽ Marquei o gol de ouro</button>
+        <button onclick="{{ onCqGiveUpGoldenGoal }}" style="flex:1;padding:9px 12px;border-radius:9px;background:#1a0810;border:1px solid #6a2b2f;color:#f8a5a7;font-family:'Space Grotesk';font-weight:700;font-size:12.5px;cursor:pointer;">Desistir</button>
+      </div>
+    </div>
+  </sc-if>
+
   <sc-if value="{{ catalogModalOpen }}" hint-placeholder-val="{{ false }}">
     <div onclick="{{ onCatalogClose }}" style="position:fixed;inset:0;z-index:52;background:rgba(4,7,11,.78);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:24px;animation:fadeIn .18s;">
       <div onclick="{{ stopProp }}" style="width:100%;max-width:720px;max-height:88vh;background:#0f1620;border:1px solid #253242;border-radius:18px;overflow:hidden;box-shadow:0 30px 90px rgba(0,0,0,.65);display:flex;flex-direction:column;">
@@ -1064,6 +1091,19 @@ class Component extends DCLogic {
     super(props);
     this.fileRef = React.createRef();
     this.state = this.buildMockState();
+    this._ggInterval = null;
+  }
+
+  componentDidMount() {
+    // If a saved state has an active golden-goal bleed running (e.g. after
+    // import or refresh), resume its interval so the countdown keeps ticking.
+    const cq = this.state.conquest;
+    if (cq && cq.goldenGoal && cq.goldenGoal.active) {
+      this.cqStartGoldenGoalInterval();
+    }
+  }
+  componentWillUnmount() {
+    if (this._ggInterval) { clearInterval(this._ggInterval); this._ggInterval = null; }
   }
 
   // ---------- accent ----------
@@ -1443,7 +1483,7 @@ class Component extends DCLogic {
     this.setState({ modal: { open: false, matchId: null, phase: null, draft: { home: '', away: '', status: 'finished' } } });
     if (cqPost) {
       if (cqPost.conquered) {
-        this.cqApplyWin(cqPost.defenderPos);
+        this.cqApplyWin(cqPost.defenderPos, { bonusSteal: !!cqPost.objectivesMet });
       } else if (cqPost.playerWon) {
         // Won the match but didn't fulfil all 3 objectives → no territory
         this.cqLog('🟡 Vitória sem conquista — objetivos não cumpridos. Nenhum território tomado.', '#f4d772');
@@ -2157,6 +2197,37 @@ class Component extends DCLogic {
       // Callback used by the fullscreen map tab to resolve attacks locally
       out.onCqExecuteAttackFromMap = (pos, hs, as, ph, pa) => this.cqExecuteAttackFromMap(pos, hs, as, ph, pa);
 
+      // ---- Golden goal (rival bleed timer) --------------------------------
+      const gg = cq.goldenGoal;
+      out.cqGoldenGoalActive = !!(gg && gg.active);
+      if (out.cqGoldenGoalActive) {
+        const remainingMs = Math.max(0, gg.nextTickAt - Date.now());
+        const remainingSec = Math.ceil(remainingMs / 1000);
+        const mm = Math.floor(remainingSec / 60);
+        const ss = remainingSec % 60;
+        out.cqGoldenGoalRivalName = gg.rivalName;
+        out.cqGoldenGoalTimer = String(mm).padStart(2, '0') + ':' + String(ss).padStart(2, '0');
+        out.cqGoldenGoalTaken = (gg.takenPositions || []).length;
+        const totalMs = gg.intervalMs || 60000;
+        const pct = Math.round(((totalMs - remainingMs) / totalMs) * 100);
+        out.cqGoldenGoalPct = pct + '%';
+        out.cqGoldenGoalUrgent = remainingSec <= 15;
+        out.cqGoldenGoalUrgentColor = out.cqGoldenGoalUrgent ? '#e0454b' : '#f4d772';
+        out.cqGoldenGoalTakenList = (gg.takenPositions || []).slice(-5).map(p => (cq.territories[p] && cq.territories[p].areaName) || 'Área').join(' · ');
+        out.onCqScoreGoldenGoal = () => this.cqScoreGoldenGoal();
+        out.onCqGiveUpGoldenGoal = () => this.cqGiveUpGoldenGoal();
+      } else {
+        out.cqGoldenGoalRivalName = '';
+        out.cqGoldenGoalTimer = '01:00';
+        out.cqGoldenGoalTaken = 0;
+        out.cqGoldenGoalPct = '0%';
+        out.cqGoldenGoalUrgent = false;
+        out.cqGoldenGoalUrgentColor = '#f4d772';
+        out.cqGoldenGoalTakenList = '';
+        out.onCqScoreGoldenGoal = () => {};
+        out.onCqGiveUpGoldenGoal = () => {};
+      }
+
       // Teams the player has CONQUERED — their homeland is now owned by me but
       // keeps its original identity. Panel lists them with their own colour.
       const conquered = cq.territories
@@ -2510,17 +2581,18 @@ class Component extends DCLogic {
     // (they represent the user's real EA FC 26 clubs). The user registers
     // their own squad manually — UNLESS the team came from the FC 26 catalog,
     // in which case we seed a real roster from window.FC_TEAM_ROSTER(catalogId).
+    // Catalogue positions (GK/DEF/MID/ATA) are mapped to the game's internal
+    // sector codes (GOL/ZAG/MEI/ATA) so stat calculation works properly.
+    const CATALOG_POS_MAP = { GK: 'GOL', DEF: 'ZAG', MID: 'MEI', ATA: 'ATA' };
     const rosters = {};
     teams.forEach(t => {
       const cat = t.catalogId && typeof window !== 'undefined' && window.FC_TEAM_ROSTER;
       const preLoaded = cat ? window.FC_TEAM_ROSTER(t.catalogId) : [];
-      // Map catalog roster shape → in-game roster shape (each roster entry
-      // gets a simple id so it can be moved/removed).
       rosters[t.id] = (preLoaded || []).map((p, idx) => ({
         id: 'p' + t.id + '_' + idx,
         name: p.name,
-        pos: p.pos,
-        ovr: p.ovr,
+        pos: CATALOG_POS_MAP[p.pos] || p.pos || 'MEI',
+        rating: p.ovr || p.rating || 75,   // ← key fix: rating not ovr
       }));
     });
     const myTeamId = teams[myIdx] ? teams[myIdx].id : teams[0].id;
@@ -2709,11 +2781,12 @@ class Component extends DCLogic {
       return { conquest: { ...s.conquest, cards: [nc, ...s.conquest.cards] } };
     });
   }
-  cqApplyWin(defenderPos) {
+  cqApplyWin(defenderPos, opts) {
     const s = this.state; const c = s.conquest;
     const defender = c.territories[defenderPos];
     const defenderTeamId = defender.teamId; // original team of this territory
     const oldOwner = defender.ownerTeamId;
+    const bonusSteal = !!(opts && opts.bonusSteal);
     // Transfer territory
     const newTerritories = c.territories.map(t => t.pos === defenderPos ? { ...t, ownerTeamId: c.myTeamId, color: this.cqColorForMe() } : t);
     // Award cards
@@ -2722,13 +2795,25 @@ class Component extends DCLogic {
       const card = this.cqDrawCard();
       drawn.push({ id: 'c_' + Math.random().toString(36).slice(2,9) + i, ...card, used: false, usedAt: null, meta: null });
     }
+    // Bonus: if the player conquered by fulfilling all 3 objectives, they get
+    // a GUARANTEED "steal_any" card on top of the regular reward.
+    if (bonusSteal) {
+      drawn.push({
+        id: 'c_bonus_' + Math.random().toString(36).slice(2, 9),
+        type: 'steal_any',
+        label: '🎯 Roubar jogador (Objetivos)',
+        desc: 'Bônus por cumprir os 3 objetivos: cadastre um jogador roubado do time derrotado.',
+        icon: '🎯', rating: 92, pos: 'STL', tier: 'gold-red',
+        used: false, usedAt: null,
+        meta: { fromDefender: defenderTeamId }, // hint for the steal flow
+      });
+    }
     const teamName = this.teamName(oldOwner);
     const newLog = [
-      { msg: '🏆 Vitória! ' + defender.areaName + ' (' + teamName + ') conquistado. +' + drawn.length + ' carta(s).', color: '#22e07a', ts: Date.now() },
+      { msg: (bonusSteal ? '🏆✨ Vitória com objetivos! ' : '🏆 Vitória! ') + defender.areaName + ' (' + teamName + ') conquistado. +' + drawn.length + ' carta(s)' + (bonusSteal ? ' (incluindo roubo bônus)' : '') + '.', color: '#22e07a', ts: Date.now() },
       ...c.log,
     ].slice(0, 60);
     const newState = { ...c, territories: newTerritories, cards: [...drawn, ...c.cards], log: newLog };
-    // Handle double_conquest: if any UNUSED double_conquest exists and it was auto-triggered? We keep it as a card the user must use manually. So do nothing here.
     this.setState({ conquest: newState, cardReveal: { open: true, cards: drawn } }, () => this.cqCheckEnd());
   }
   cqColorForMe() {
@@ -2738,46 +2823,154 @@ class Component extends DCLogic {
     return mine ? mine.color : '#22e07a';
   }
   cqApplyLoss(defenderPos) {
-    // Player LOST. Opponent (the defender's team) takes ownership of player's nearest territory.
+    // Player LOST a match. Base punishment: lose a player from the roster
+    // (unless shielded). Then, if a rival exists and hasn't been defeated,
+    // start the "rival golden goal" bleed — a live 1-min ticker where the
+    // rival steals territories one by one until the user marks the golden
+    // goal or gives up. When there's no rival, we fall back to the classic
+    // behaviour (opponent immediately steals one adjacent territory).
     const c = this.state.conquest;
     const defender = c.territories[defenderPos];
-    const oppTeamId = defender.teamId; // this defender is opponent
-    const adj = this.cqAdj();
-    // Find any of my territories that is adjacent to defenderPos, else any of my territories
-    const myTerritories = c.territories.filter(t => t.ownerTeamId === c.myTeamId).map(t => t.pos);
-    let target = -1;
-    const defAdj = adj[defenderPos] || [];
-    for (const p of defAdj) { if (c.territories[p].ownerTeamId === c.myTeamId) { target = p; break; } }
-    if (target === -1 && myTerritories.length) target = myTerritories[0];
-    // Check for shield card
+    const oppTeamId = defender.teamId;
     const shieldIdx = c.cards.findIndex(x => x.type === 'shield' && !x.used);
     let cards = c.cards.slice();
+    let rosters = c.rosters;
     let logMsg;
     if (shieldIdx !== -1) {
       cards = cards.map((x, i) => i === shieldIdx ? { ...x, used: true, usedAt: Date.now() } : x);
       logMsg = { msg: '🛡️ Derrota contra ' + this.teamName(oppTeamId) + ' — Escudo consumido, elenco intacto.', color: '#c3ccd6', ts: Date.now() };
     } else {
-      // Lose a random player (not the goalkeeper if possible)
       const myRoster = c.rosters[c.myTeamId] || [];
       if (myRoster.length > 1) {
         const candidates = myRoster.filter(p => p.pos !== 'GOL');
         const pool = candidates.length ? candidates : myRoster;
         const lost = pool[Math.floor(Math.random() * pool.length)];
-        c.rosters = { ...c.rosters, [c.myTeamId]: myRoster.filter(p => p.id !== lost.id) };
-        logMsg = { msg: '💔 Derrota. ' + lost.name + ' (' + lost.pos + ') perdido para ' + this.teamName(oppTeamId) + '.', color: '#e0454b', ts: Date.now() };
+        rosters = { ...c.rosters, [c.myTeamId]: myRoster.filter(p => p.id !== lost.id) };
+        logMsg = { msg: '💔 Derrota contra ' + this.teamName(oppTeamId) + '. ' + lost.name + ' (' + lost.pos + ') perdido.', color: '#e0454b', ts: Date.now() };
       } else {
         logMsg = { msg: '💔 Derrota contra ' + this.teamName(oppTeamId) + '. Sem jogadores para perder.', color: '#e0454b', ts: Date.now() };
       }
     }
-    // Transfer territory to opponent
     let newTerritories = c.territories;
-    if (target !== -1) {
-      const targetArea = c.territories[target].areaName;
-      newTerritories = c.territories.map(t => t.pos === target ? { ...t, ownerTeamId: oppTeamId, color: this.cqColorForTeam(oppTeamId) } : t);
-      logMsg.msg = logMsg.msg + ' Território ' + targetArea + ' tomado.';
+    // If no rival, fall back to immediate territory transfer to opponent
+    const rivalActive = c.rival && !c.rival.defeated;
+    if (!rivalActive) {
+      const adj = this.cqAdj();
+      const myTerritories = c.territories.filter(t => t.ownerTeamId === c.myTeamId).map(t => t.pos);
+      let target = -1;
+      const defAdj = adj[defenderPos] || [];
+      for (const p of defAdj) { if (c.territories[p].ownerTeamId === c.myTeamId) { target = p; break; } }
+      if (target === -1 && myTerritories.length) target = myTerritories[0];
+      if (target !== -1) {
+        const targetArea = c.territories[target].areaName;
+        newTerritories = c.territories.map(t => t.pos === target ? { ...t, ownerTeamId: oppTeamId, color: this.cqColorForTeam(oppTeamId) } : t);
+        logMsg = { ...logMsg, msg: logMsg.msg + ' Território ' + targetArea + ' tomado.' };
+      }
     }
     const newLog = [logMsg, ...c.log].slice(0, 60);
-    this.setState({ conquest: { ...c, territories: newTerritories, cards, rosters: c.rosters, log: newLog } }, () => this.cqCheckEnd());
+    this.setState({ conquest: { ...c, territories: newTerritories, cards, rosters, log: newLog } }, () => {
+      this.cqCheckEnd();
+      // Trigger rival's golden-goal bleed (territories tick away every 60s)
+      if (rivalActive) this.cqStartGoldenGoal(c.rival.teamId);
+    });
+  }
+
+  // ---------- Rival golden-goal bleed (Patch 3 core) --------------------
+  cqStartGoldenGoal(rivalTeamId) {
+    const c = this.state.conquest;
+    if (!c) return;
+    if (c.goldenGoal && c.goldenGoal.active) return; // already running
+    const now = Date.now();
+    const rivalName = this.teamName(rivalTeamId);
+    this.setState(s => ({
+      conquest: {
+        ...s.conquest,
+        goldenGoal: {
+          active: true,
+          rivalTeamId,
+          rivalName,
+          startedAt: now,
+          nextTickAt: now + 60000,
+          intervalMs: 60000,
+          takenPositions: [],
+        },
+        log: [{ msg: '⏱️ Rival ' + rivalName + ' te chamou para o gol de ouro! Cada minuto de atraso = 1 território perdido.', color: '#e0454b', ts: now }, ...s.conquest.log].slice(0, 60),
+      },
+    }), () => this.cqStartGoldenGoalInterval());
+  }
+  cqStartGoldenGoalInterval() {
+    if (this._ggInterval) clearInterval(this._ggInterval);
+    // Poll every 500ms so the visible countdown updates smoothly
+    this._ggInterval = setInterval(() => this.cqTickGoldenGoal(), 500);
+  }
+  cqTickGoldenGoal() {
+    const c = this.state.conquest;
+    if (!c || !c.goldenGoal || !c.goldenGoal.active) {
+      if (this._ggInterval) { clearInterval(this._ggInterval); this._ggInterval = null; }
+      return;
+    }
+    const now = Date.now();
+    if (now < c.goldenGoal.nextTickAt) {
+      // Just tick the UI for the countdown
+      this.forceUpdate();
+      return;
+    }
+    // Time to take a territory
+    const opp = c.goldenGoal.rivalTeamId;
+    const myTerritories = c.territories.filter(t => t.ownerTeamId === c.myTeamId);
+    if (!myTerritories.length) {
+      this.cqEndGoldenGoal('all_lost');
+      return;
+    }
+    // Prefer taking a territory adjacent to rival's holdings, else random
+    const adj = this.cqAdj();
+    const rivalOwned = c.territories.filter(t => t.ownerTeamId === opp).map(t => t.pos);
+    let target = null;
+    for (const rp of rivalOwned) {
+      for (const n of (adj[rp] || [])) {
+        if (c.territories[n].ownerTeamId === c.myTeamId) { target = n; break; }
+      }
+      if (target != null) break;
+    }
+    if (target == null) target = myTerritories[Math.floor(Math.random() * myTerritories.length)].pos;
+    const targetName = c.territories[target].areaName;
+    const newTerritories = c.territories.map(t => t.pos === target ? { ...t, ownerTeamId: opp, color: this.cqColorForTeam(opp) } : t);
+    const newLog = [
+      { msg: '⏱️ Rival ' + c.goldenGoal.rivalName + ' toma ' + targetName + '!', color: '#e0454b', ts: now },
+      ...c.log,
+    ].slice(0, 60);
+    const newGG = {
+      ...c.goldenGoal,
+      nextTickAt: now + (c.goldenGoal.intervalMs || 60000),
+      takenPositions: [...(c.goldenGoal.takenPositions || []), target],
+    };
+    this.setState({ conquest: { ...c, territories: newTerritories, log: newLog, goldenGoal: newGG } }, () => this.cqCheckEnd());
+  }
+  cqEndGoldenGoal(reason) {
+    if (this._ggInterval) { clearInterval(this._ggInterval); this._ggInterval = null; }
+    this.setState(s => {
+      const c = s.conquest;
+      if (!c || !c.goldenGoal) return {};
+      const rivalName = c.goldenGoal.rivalName;
+      const takenCount = (c.goldenGoal.takenPositions || []).length;
+      const logMsg = reason === 'scored'
+        ? { msg: '⚽ GOL DE OURO marcado! Rival ' + rivalName + ' contido — perdeu ' + takenCount + ' território(s).', color: '#22e07a', ts: Date.now() }
+        : reason === 'gave_up'
+        ? { msg: '🏳️ Desistência do gol de ouro. Rival ' + rivalName + ' tomou ' + takenCount + ' território(s).', color: '#f4d772', ts: Date.now() }
+        : { msg: '💀 Todos os territórios perdidos para ' + rivalName + '.', color: '#e0454b', ts: Date.now() };
+      return {
+        conquest: {
+          ...c,
+          goldenGoal: { active: false, takenPositions: [], nextTickAt: 0 },
+          log: [logMsg, ...c.log].slice(0, 60),
+        },
+      };
+    });
+  }
+  cqScoreGoldenGoal() { this.cqEndGoldenGoal('scored'); }
+  cqGiveUpGoldenGoal() {
+    if (!confirm('Desistir do gol de ouro? O rival vai parar de tomar territórios, mas os já perdidos ficam com ele.')) return;
+    this.cqEndGoldenGoal('gave_up');
   }
   cqColorForTeam(teamId) {
     const c = this.state.conquest;

@@ -550,18 +550,21 @@ function CqMap3D({ territories, onTerritoryClick, height }) {
 
         territoryGroup.add(group);
 
-        // Label — only for MY territories and attackable ones (huge perf win
-        // with 100+ pins; neutral grey pins don't need labels)
-        if (t.isMine || t.attackable) {
-          const el = document.createElement('div');
-          const badge = t.badge
-            ? `<span style="display:inline-block;margin-left:5px;padding:1px 6px;border-radius:99px;background:${t.attackable ? '#22e07a' : '#ffffff'};color:#04140b;font-size:9px;font-weight:900;">${t.badge}</span>`
-            : '';
-          el.style.cssText = 'position:absolute;left:0;top:0;font:800 11px "Space Grotesk",sans-serif;color:#fff;white-space:nowrap;padding:2px 8px;background:rgba(10,26,26,.72);border-radius:6px;border:1px solid rgba(255,255,255,.22);text-shadow:0 1px 2px rgba(0,0,0,.9);backdrop-filter:blur(2px);opacity:0;transition:opacity .2s;';
-          el.innerHTML = (t.name || '') + badge;
-          labelLayer.appendChild(el);
-          st.labels.push({ el, x: wx, y: wy, z: groundZ + POLE_H + 26 });
-        }
+        // Label — shown for EVERY territory so player can identify all clubs.
+        // Style is compact for neutrals, brighter for mine/attackable/rival.
+        const el = document.createElement('div');
+        const badge = t.badge
+          ? `<span style="display:inline-block;margin-left:5px;padding:1px 6px;border-radius:99px;background:${t.attackable ? '#22e07a' : (t.isMine ? '#ffffff' : '#e0454b')};color:#04140b;font-size:9px;font-weight:900;">${t.badge}</span>`
+          : '';
+        const emphasize = t.isMine || t.attackable || (t.badge === '🔒');
+        const bg = emphasize ? 'rgba(10,26,26,.78)' : 'rgba(6,14,20,.55)';
+        const border = emphasize ? 'rgba(255,255,255,.28)' : 'rgba(255,255,255,.10)';
+        const fontSize = emphasize ? '11px' : '9.5px';
+        const fontWeight = emphasize ? 800 : 600;
+        el.style.cssText = 'position:absolute;left:0;top:0;font:' + fontWeight + ' ' + fontSize + ' "Space Grotesk",sans-serif;color:#fff;white-space:nowrap;padding:1.5px 6px;background:' + bg + ';border-radius:5px;border:1px solid ' + border + ';text-shadow:0 1px 2px rgba(0,0,0,.9);opacity:0;transition:opacity .2s;';
+        el.innerHTML = (t.name || '') + badge;
+        labelLayer.appendChild(el);
+        st.labels.push({ el, x: wx, y: wy, z: groundZ + POLE_H + 26, isEmphasized: emphasize });
       });
     };
 
