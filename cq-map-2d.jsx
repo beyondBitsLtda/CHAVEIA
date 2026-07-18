@@ -1,28 +1,29 @@
 // 2D relief map for Conquista Mundial — full-image background with animated
 // beacon markers per territory. Pan (drag), zoom (wheel), and click to attack.
 // React is injected by the DC runtime as a function argument, so DON'T redeclare it.
-console.log('%c[cq-map-2d.jsx] version 2026-07-18-r1 — 2D map with panzoom', 'color:#22e07a;font-weight:bold');
-const { useEffect, useRef, useState } = React;
+console.log('%c[cq-map-2d.jsx] version 2026-07-18-r2 — bbox + clamp + jitter', 'color:#22e07a;font-weight:bold');
+const { useEffect, useRef, useState, useMemo } = React;
 
 // Path to the parchment background — put map-bg.png in the site root
 const MAP_BG_URL = 'map-bg.png';
 
-// Territory coordinate window (matches the game's world-map bbox).
-// (t.x, t.y) get remapped from this range into the map image's placement area.
-const GAME_MIN_X = 20;
-const GAME_MAX_X = 810;
-const GAME_MIN_Y = 40;
-const GAME_MAX_Y = 500;
-
 // Where in the map image we place the pins (as fractions of image dims).
 // Leaves margins so beacons don't sit on the borders of the artwork.
-const MAP_INSET = { left: 0.08, right: 0.92, top: 0.12, bottom: 0.90 };
+const MAP_INSET = { left: 0.09, right: 0.90, top: 0.11, bottom: 0.87 };
 
 // Displayed image width; scale factor grows/shrinks it
-const IMG_WIDTH_PX = 1800;   // natural width we render the bg at (before zoom)
+const IMG_WIDTH_PX = 1800;
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 3.0;
 const ZOOM_STEP_WHEEL = 0.0012;
+
+// Deterministic hash-based jitter — many territories share the same base
+// (t.x, t.y) because the game wraps 100 pos values onto a 32-entry world map.
+// This spreads duplicates out visually without ever affecting gameplay.
+function jitterFor(seed, salt) {
+  const s = Math.sin((seed + 1) * 12.9898 + salt * 78.233) * 43758.5453;
+  return (s - Math.floor(s)) - 0.5; // -0.5 .. 0.5
+}
 
 function CqMap2D({ territories, height }) {
   const containerRef = useRef(null);
@@ -49,7 +50,6 @@ function CqMap2D({ territories, height }) {
     const fit = () => {
       const cw = container.clientWidth || 900;
       const ch = container.clientHeight || 540;
-      // Choose a scale so the whole image fits comfortably
       const fitScale = Math.min(cw / imgSize.w, ch / imgSize.h);
       const scale = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, fitScale));
       const x = (cw - imgSize.w * scale) / 2;
@@ -65,6 +65,26 @@ function CqMap2D({ territories, height }) {
       window.removeEventListener('resize', fit);
     };
   }, [imgSize.w, imgSize.h]);
+
+  // Compute the territory (game-coord) bounding box dynamically. This way the
+  // pins ALWAYS fit inside the map inset area — no matter how the game's
+  // world-map coordinate range shifts in the future.
+  const bbox = useMemo(() => {
+    const list = territories || [];
+    if (!list.length) return { minX: 0, maxX: 1, minY: 0, maxY: 1 };
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    list.forEach(t => {
+      if (typeof t.x !== 'number' || typeof t.y !== 'number') return;
+      if (t.x < minX) minX = t.x;
+      if (t.x > maxX) maxX = t.x;
+      if (t.y < minY) minY = t.y;
+      if (t.y > maxY) maxY = t.y;
+    });
+    // Guard against a single-point map (all territories at same coords)
+    if (minX === maxX) { minX -= 1; maxX += 1; }
+    if (minY === maxY) { minY -= 1; maxY += 1; }
+    return { minX, maxX, minY, maxY };
+  }, [territories]);
 
   // Pan
   const onMouseDown = (e) => {
@@ -131,17 +151,26 @@ function CqMap2D({ territories, height }) {
     setTransform({ scale, x: (cw - imgSize.w * scale) / 2, y: (ch - imgSize.h * scale) / 2, ready: true });
   };
 
-  // Remap (t.x, t.y) → pixel coords inside the image
+  // Remap (t.x, t.y) → pixel coords inside the image using the DYNAMIC bbox.
+  // A deterministic jitter derived from t.pos is added to spread duplicates
+  // (many territories share the same base wm slot).
   const areaW = imgSize.w * (MAP_INSET.right - MAP_INSET.left);
   const areaH = imgSize.h * (MAP_INSET.bottom - MAP_INSET.top);
   const offX = imgSize.w * MAP_INSET.left;
   const offY = imgSize.h * MAP_INSET.top;
-  const rangeX = GAME_MAX_X - GAME_MIN_X;
-  const rangeY = GAME_MAX_Y - GAME_MIN_Y;
-  const toPx = (gx, gy) => ({
-    px: offX + ((gx - GAME_MIN_X) / rangeX) * areaW,
-    py: offY + ((gy - GAME_MIN_Y) / rangeY) * areaH,
-  });
+  const rangeX = Math.max(1, bbox.maxX - bbox.minX);
+  const rangeY = Math.max(1, bbox.maxY - bbox.minY);
+  const JITTER_PX = Math.min(70, Math.max(24, Math.min(areaW, areaH) * 0.025));
+  const clamp = (v, mn, mx) => Math.max(mn, Math.min(mx, v));
+  const toPx = (gx, gy, pos) => {
+    const rawX = offX + ((gx - bbox.minX) / rangeX) * areaW + jitterFor(pos, 1.7) * JITTER_PX;
+    const rawY = offY + ((gy - bbox.minY) / rangeY) * areaH + jitterFor(pos, 4.3) * JITTER_PX;
+    // Hard clamp so a pin CAN NEVER escape the map inset area.
+    return {
+      px: clamp(rawX, offX, offX + areaW),
+      py: clamp(rawY, offY, offY + areaH),
+    };
+  };
 
   // Handle click (prevented if drag moved > threshold)
   const handleTerritoryClick = (t) => {
@@ -186,7 +215,7 @@ function CqMap2D({ territories, height }) {
       }),
       // Territory beacons overlay
       ...(territories || []).map((t, i) => {
-        const { px, py } = toPx(t.x, t.y);
+        const { px, py } = toPx(t.x, t.y, t.pos || i);
         const isRival = t.badge === '🔒';
         const isMine = !!t.isMine;
         const isAttack = !!t.attackable;
