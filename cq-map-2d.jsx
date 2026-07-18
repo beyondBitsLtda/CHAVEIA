@@ -1,25 +1,25 @@
 // 2D relief map for Conquista Mundial — full-image background with animated
 // beacon markers per territory. Pan (drag), zoom (wheel), and click to attack.
 // React is injected by the DC runtime as a function argument, so DON'T redeclare it.
-console.log('%c[cq-map-2d.jsx] version 2026-07-18-r2 — bbox + clamp + jitter', 'color:#22e07a;font-weight:bold');
+console.log('%c[cq-map-2d.jsx] version 2026-07-18-r4 — 5000px, strong solver, min-zoom floor', 'color:#22e07a;font-weight:bold');
 const { useEffect, useRef, useState, useMemo } = React;
 
 // Path to the parchment background — put map-bg.png in the site root
 const MAP_BG_URL = 'map-bg.png';
 
 // Where in the map image we place the pins (as fractions of image dims).
-// Leaves margins so beacons don't sit on the borders of the artwork.
-const MAP_INSET = { left: 0.09, right: 0.90, top: 0.11, bottom: 0.87 };
+const MAP_INSET = { left: 0.07, right: 0.92, top: 0.09, bottom: 0.89 };
 
-// Displayed image width; scale factor grows/shrinks it
-const IMG_WIDTH_PX = 1800;
-const ZOOM_MIN = 0.5;
-const ZOOM_MAX = 3.0;
+// Very large image so 100 pins have real room to breathe. User zooms out to
+// see the whole map at once, then pans to explore. See MIN_START_SCALE below.
+const IMG_WIDTH_PX = 5000;
+const ZOOM_MIN = 0.25;
+const ZOOM_MAX = 3.5;
 const ZOOM_STEP_WHEEL = 0.0012;
 
-// Deterministic hash-based jitter — many territories share the same base
-// (t.x, t.y) because the game wraps 100 pos values onto a 32-entry world map.
-// This spreads duplicates out visually without ever affecting gameplay.
+// Never open smaller than this — otherwise labels would visually stack again.
+const MIN_START_SCALE = 0.45;
+
 function jitterFor(seed, salt) {
   const s = Math.sin((seed + 1) * 12.9898 + salt * 78.233) * 43758.5453;
   return (s - Math.floor(s)) - 0.5; // -0.5 .. 0.5
@@ -51,7 +51,10 @@ function CqMap2D({ territories, height }) {
       const cw = container.clientWidth || 900;
       const ch = container.clientHeight || 540;
       const fitScale = Math.min(cw / imgSize.w, ch / imgSize.h);
-      const scale = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, fitScale));
+      // Never open the map so small that labels stack visually. If the
+      // natural fit is tiny, we still start at MIN_START_SCALE and the user
+      // pans around to see the rest.
+      const scale = Math.max(MIN_START_SCALE, Math.min(ZOOM_MAX, fitScale));
       const x = (cw - imgSize.w * scale) / 2;
       const y = (ch - imgSize.h * scale) / 2;
       setTransform({ scale, x, y, ready: true });
@@ -147,30 +150,84 @@ function CqMap2D({ territories, height }) {
     const cw = container.clientWidth || 900;
     const ch = container.clientHeight || 540;
     const fitScale = Math.min(cw / imgSize.w, ch / imgSize.h);
-    const scale = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, fitScale));
+    const scale = Math.max(MIN_START_SCALE, Math.min(ZOOM_MAX, fitScale));
     setTransform({ scale, x: (cw - imgSize.w * scale) / 2, y: (ch - imgSize.h * scale) / 2, ready: true });
   };
 
-  // Remap (t.x, t.y) → pixel coords inside the image using the DYNAMIC bbox.
-  // A deterministic jitter derived from t.pos is added to spread duplicates
-  // (many territories share the same base wm slot).
-  const areaW = imgSize.w * (MAP_INSET.right - MAP_INSET.left);
-  const areaH = imgSize.h * (MAP_INSET.bottom - MAP_INSET.top);
-  const offX = imgSize.w * MAP_INSET.left;
-  const offY = imgSize.h * MAP_INSET.top;
-  const rangeX = Math.max(1, bbox.maxX - bbox.minX);
-  const rangeY = Math.max(1, bbox.maxY - bbox.minY);
-  const JITTER_PX = Math.min(70, Math.max(24, Math.min(areaW, areaH) * 0.025));
-  const clamp = (v, mn, mx) => Math.max(mn, Math.min(mx, v));
-  const toPx = (gx, gy, pos) => {
-    const rawX = offX + ((gx - bbox.minX) / rangeX) * areaW + jitterFor(pos, 1.7) * JITTER_PX;
-    const rawY = offY + ((gy - bbox.minY) / rangeY) * areaH + jitterFor(pos, 4.3) * JITTER_PX;
-    // Hard clamp so a pin CAN NEVER escape the map inset area.
-    return {
-      px: clamp(rawX, offX, offX + areaW),
-      py: clamp(rawY, offY, offY + areaH),
-    };
-  };
+  // Pre-compute all pin positions once, with jitter + collision resolution.
+  // Multiple territories share the same base (t.x, t.y) so we add a hash-based
+  // jitter, then run a simple repulsion pass so overlapping pairs get pushed
+  // apart. Everything is finally clamped to the map inset area so nothing can
+  // escape the map artwork.
+  const pinPositions = useMemo(() => {
+    const list = territories || [];
+    if (!list.length) return {};
+    const areaW = imgSize.w * (MAP_INSET.right - MAP_INSET.left);
+    const areaH = imgSize.h * (MAP_INSET.bottom - MAP_INSET.top);
+    const offX = imgSize.w * MAP_INSET.left;
+    const offY = imgSize.h * MAP_INSET.top;
+    const rangeX = Math.max(1, bbox.maxX - bbox.minX);
+    const rangeY = Math.max(1, bbox.maxY - bbox.minY);
+
+    // Density-aware initial jitter: enough to break up duplicate stacks.
+    const totalArea = areaW * areaH;
+    const areaPerPin = totalArea / list.length;
+    const cellR = Math.sqrt(areaPerPin);          // ~ ideal spacing radius
+    const JITTER_PX = Math.min(cellR * 1.0, 320);
+
+    // 1) Initial placement with pos-based jitter
+    const pos = list.map((t, i) => {
+      const seed = (typeof t.pos === 'number') ? t.pos : i;
+      const bx = offX + ((t.x - bbox.minX) / rangeX) * areaW;
+      const by = offY + ((t.y - bbox.minY) / rangeY) * areaH;
+      return {
+        idx: i,
+        x: bx + jitterFor(seed, 1.7) * JITTER_PX,
+        y: by + jitterFor(seed, 4.3) * JITTER_PX,
+      };
+    });
+
+    // 2) Collision resolver — nudge pairs closer than MIN_DIST apart.
+    //    MIN_DIST is set close to the natural cell radius so pins actually
+    //    space out. Many iterations + strong push = fast convergence.
+    const MIN_DIST = cellR * 1.05;
+    const MIN_DIST_SQ = MIN_DIST * MIN_DIST;
+    const clamp = (v, mn, mx) => Math.max(mn, Math.min(mx, v));
+    for (let iter = 0; iter < 60; iter++) {
+      let moved = false;
+      for (let i = 0; i < pos.length; i++) {
+        for (let j = i + 1; j < pos.length; j++) {
+          const dx = pos[j].x - pos[i].x;
+          const dy = pos[j].y - pos[i].y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 >= MIN_DIST_SQ) continue;
+          const d = d2 < 1e-4 ? 0.01 : Math.sqrt(d2);
+          const overlap = (MIN_DIST - d) * 0.7;
+          // If two pins are exactly on top of each other, use a
+          // deterministic offset direction based on their indices
+          const nx = d < 0.5 ? Math.cos((i - j) * 2.4) : dx / d;
+          const ny = d < 0.5 ? Math.sin((i - j) * 2.4) : dy / d;
+          pos[i].x -= nx * overlap; pos[i].y -= ny * overlap;
+          pos[j].x += nx * overlap; pos[j].y += ny * overlap;
+          moved = true;
+        }
+      }
+      for (const p of pos) {
+        p.x = clamp(p.x, offX, offX + areaW);
+        p.y = clamp(p.y, offY, offY + areaH);
+      }
+      if (!moved) break;
+    }
+
+    // 3) Return as a keyed map for O(1) lookup while rendering
+    const out = {};
+    for (const p of pos) {
+      const t = list[p.idx];
+      const key = (typeof t.pos !== 'undefined') ? t.pos : p.idx;
+      out[key] = { px: p.x, py: p.y };
+    }
+    return out;
+  }, [territories, imgSize.w, imgSize.h, bbox]);
 
   // Handle click (prevented if drag moved > threshold)
   const handleTerritoryClick = (t) => {
@@ -215,7 +272,9 @@ function CqMap2D({ territories, height }) {
       }),
       // Territory beacons overlay
       ...(territories || []).map((t, i) => {
-        const { px, py } = toPx(t.x, t.y, t.pos || i);
+        const key = (typeof t.pos !== 'undefined') ? t.pos : i;
+        const p = pinPositions[key] || { px: 0, py: 0 };
+        const px = p.px, py = p.py;
         const isRival = t.badge === '🔒';
         const isMine = !!t.isMine;
         const isAttack = !!t.attackable;
