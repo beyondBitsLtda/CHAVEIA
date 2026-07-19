@@ -939,6 +939,87 @@ input:focus{outline:none;}
     </div>
   </sc-if>
 
+  <sc-if value="{{ cqPendingRivalMatch }}" hint-placeholder-val="{{ false }}">
+    <div onclick="{{ onCqOpenRivalMatch }}" style="position:fixed;top:74px;left:50%;transform:translateX(-50%);z-index:55;padding:10px 20px;background:linear-gradient(135deg,#3a0f11,#1a0810);border:1.5px solid #e0454b;border-radius:12px;color:#f4d8da;font-family:'Space Grotesk';font-weight:800;font-size:13px;cursor:pointer;box-shadow:0 12px 30px rgba(224,69,75,.4);animation:goldenGoalPulse 2s ease-in-out infinite;">
+      {{ cqRivalMatchButtonLabel }} ↗
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ cqRivalMatchModalOpen }}" hint-placeholder-val="{{ false }}">
+    <div onclick="{{ onCqRivalMatchClose }}" style="position:fixed;inset:0;z-index:54;background:rgba(4,7,11,.82);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:24px;animation:fadeIn .18s;">
+      <div onclick="{{ stopProp }}" style="width:100%;max-width:520px;background:linear-gradient(160deg,#1a0d10,#0f1620);border:1.5px solid #e0454b;border-radius:16px;overflow:hidden;box-shadow:0 30px 90px rgba(224,69,75,.35);">
+        <div style="padding:22px 24px 6px;text-align:center;">
+          <div style="font-size:36px;margin-bottom:4px;">⚔️</div>
+          <div style="font-family:'Space Grotesk';font-weight:800;font-size:20px;color:#f4d8da;">Duelo obrigatório</div>
+          <div style="font-size:12px;color:#a58a8c;margin-top:3px;">Vença o rival <span style="color:#f8a5a7;font-weight:700;">{{ cqRivalMatchRivalName }}</span> pra roubar um jogador e desbloquear o território dele.</div>
+        </div>
+        <div style="padding:18px 24px 6px;display:flex;gap:12px;align-items:center;justify-content:center;">
+          <div style="flex:1;text-align:center;">
+            <div style="font-size:10.5px;color:#8b97a5;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Você</div>
+            <input value="{{ cqRivalMatchHomeScore }}" onchange="{{ onCqRivalMatchHome }}" type="number" min="0" placeholder="0" style="width:100%;padding:14px 6px;background:#0a0e13;border:1px solid #263140;border-radius:11px;color:#22e07a;text-align:center;font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:800;outline:none;">
+          </div>
+          <div style="font-family:'Space Grotesk';font-weight:700;font-size:26px;color:#6a747f;">×</div>
+          <div style="flex:1;text-align:center;">
+            <div style="font-size:10.5px;color:#8b97a5;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">{{ cqRivalMatchRivalName }}</div>
+            <input value="{{ cqRivalMatchAwayScore }}" onchange="{{ onCqRivalMatchAway }}" type="number" min="0" placeholder="0" style="width:100%;padding:14px 6px;background:#0a0e13;border:1px solid #263140;border-radius:11px;color:#e0454b;text-align:center;font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:800;outline:none;">
+          </div>
+        </div>
+        <div style="padding:8px 24px 18px;font-size:11px;color:#7a8794;text-align:center;line-height:1.5;">Empate não vale — se ganhar nos pênaltis, adicione +1 gol pro vencedor.</div>
+        <div style="padding:14px 24px 20px;display:flex;gap:10px;">
+          <button onclick="{{ onCqRivalMatchClose }}" style="flex:1;padding:11px;border-radius:10px;background:#141c26;border:1px solid #263140;color:#cdd6df;font-family:'Space Grotesk';font-weight:700;font-size:13px;cursor:pointer;">Cancelar</button>
+          <button onclick="{{ onCqRivalMatchConfirm }}" style="flex:2;padding:11px;border-radius:10px;background:linear-gradient(135deg,#e0454b,#8a1e23);border:none;color:#fff;font-family:'Space Grotesk';font-weight:800;font-size:13px;cursor:pointer;">Confirmar resultado</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ cqStealModalOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;z-index:54;background:rgba(4,7,11,.85);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:24px;animation:fadeIn .18s;">
+      <div style="width:100%;max-width:640px;max-height:88vh;background:linear-gradient(160deg,#0f1a10,#0f1620);border:1.5px solid #22e07a;border-radius:16px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 30px 90px rgba(34,224,122,.25);">
+        <div style="padding:20px 24px 8px;text-align:center;border-bottom:1px solid #1c2530;">
+          <div style="font-size:34px;margin-bottom:4px;">🎯</div>
+          <div style="font-family:'Space Grotesk';font-weight:800;font-size:18px;color:#c4ffdf;">Roubo pós-duelo</div>
+          <div style="font-size:12px;color:#8b97a5;margin-top:3px;">Você venceu <span style="color:#22e07a;font-weight:700;">{{ cqStealRivalName }}</span> por {{ cqStealMatchScore }}. Escolha quem levar pro seu elenco.</div>
+        </div>
+        <sc-if value="{{ cqStealHasCatalog }}" hint-placeholder-val="{{ true }}">
+          <div style="flex:1;overflow-y:auto;padding:14px 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;">
+            <sc-for list="{{ cqStealRosterList }}" as="p" hint-placeholder-count="8">
+              <button onclick="{{ p.onPick }}" style="padding:10px 12px;border-radius:10px;background:#0c121a;border:1px solid #1e2733;color:#e6ebf0;font-family:'Space Grotesk';cursor:pointer;text-align:left;transition:all .12s;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <div style="width:32px;height:32px;border-radius:8px;background:#141c26;border:1px solid #263140;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-weight:800;font-size:12px;color:{{ p.tierColor }};">{{ p.ovr }}</div>
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ p.name }}</div>
+                    <div style="font-size:10.5px;color:#8b97a5;">{{ p.pos }}</div>
+                  </div>
+                </div>
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ cqStealHasCatalog }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:20px 24px;">
+            <div style="font-size:12px;color:#8b97a5;margin-bottom:14px;line-height:1.5;">Esse time não tem elenco pré-cadastrado. Digite o jogador que você roubou dele no jogo:</div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <input value="{{ cqStealTypedName }}" onchange="{{ onCqStealTypedName }}" placeholder="Nome do jogador" style="padding:11px 14px;background:#0a0e13;border:1px solid #263140;border-radius:10px;color:#e6ebf0;font-size:14px;outline:none;font-family:'Space Grotesk';">
+              <div style="display:flex;gap:8px;">
+                <select value="{{ cqStealTypedPos }}" onchange="{{ onCqStealTypedPos }}" style="flex:1;padding:11px 12px;background:#0a0e13;border:1px solid #263140;border-radius:10px;color:#e6ebf0;font-size:13px;font-family:'Space Grotesk';">
+                  <option value="GOL">GOL</option>
+                  <option value="ZAG">ZAG</option>
+                  <option value="LAT">LAT</option>
+                  <option value="VOL">VOL</option>
+                  <option value="MEI">MEI</option>
+                  <option value="ATA">ATA</option>
+                </select>
+                <input value="{{ cqStealTypedRating }}" onchange="{{ onCqStealTypedRating }}" type="number" min="40" max="99" placeholder="OVR" style="width:110px;padding:11px 12px;background:#0a0e13;border:1px solid #263140;border-radius:10px;color:#e6ebf0;font-size:13px;text-align:center;font-family:'JetBrains Mono',monospace;font-weight:700;">
+              </div>
+            </div>
+            <button onclick="{{ onCqStealTypedConfirm }}" style="margin-top:16px;width:100%;padding:12px;border-radius:10px;background:linear-gradient(135deg,#22e07a,#1a9d55);border:none;color:#04140b;font-family:'Space Grotesk';font-weight:800;font-size:13px;cursor:pointer;">Confirmar roubo</button>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </sc-if>
+
   <sc-if value="{{ catalogModalOpen }}" hint-placeholder-val="{{ false }}">
     <div onclick="{{ onCatalogClose }}" style="position:fixed;inset:0;z-index:52;background:rgba(4,7,11,.78);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:24px;animation:fadeIn .18s;">
       <div onclick="{{ stopProp }}" style="width:100%;max-width:720px;max-height:88vh;background:#0f1620;border:1px solid #253242;border-radius:18px;overflow:hidden;box-shadow:0 30px 90px rgba(0,0,0,.65);display:flex;flex-direction:column;">
@@ -2225,6 +2306,53 @@ class Component extends DCLogic {
         out.onCqGiveUpGoldenGoal = () => {};
       }
 
+      // ---- Patch 3: pending rival match banner ---------------------------
+      out.cqPendingRivalMatch = !!cq.pendingRivalMatch;
+      out.cqRivalMatchButtonLabel = cq.rival ? ('⚔️ Enfrentar ' + this.teamName(cq.rival.teamId) + ' agora') : '';
+      out.onCqOpenRivalMatch = () => this.cqOpenRivalMatch();
+
+      // ---- Rival match modal --------------------------------------------
+      const rmm = cq.rivalMatchModal;
+      out.cqRivalMatchModalOpen = !!(rmm && rmm.open);
+      if (out.cqRivalMatchModalOpen && cq.rival) {
+        out.cqRivalMatchRivalName = this.teamName(cq.rival.teamId);
+        out.cqRivalMatchHomeScore = rmm.homeScore;
+        out.cqRivalMatchAwayScore = rmm.awayScore;
+        out.onCqRivalMatchHome = e => this.cqSetRivalScore({ homeScore: e.target.value });
+        out.onCqRivalMatchAway = e => this.cqSetRivalScore({ awayScore: e.target.value });
+        out.onCqRivalMatchConfirm = () => this.cqConfirmRivalMatch();
+        out.onCqRivalMatchClose = () => this.cqCloseRivalMatch();
+      }
+
+      // ---- Steal-player modal (post-rival-victory) ----------------------
+      const stm = cq.stealModal;
+      out.cqStealModalOpen = !!(stm && stm.open);
+      if (out.cqStealModalOpen) {
+        out.cqStealRivalName = stm.rivalName || '';
+        out.cqStealMatchScore = stm.matchScore || '';
+        out.cqStealHasCatalog = (stm.catalogRoster || []).length > 0;
+        // Pre-built list of roster buttons if the rival is in the catalog
+        const POS_LABEL = { GK: 'GOL', DEF: 'ZAG', MID: 'MEI', ATA: 'ATA' };
+        out.cqStealRosterList = (stm.catalogRoster || []).map((p, i) => {
+          const tierColor = p.ovr >= 88 ? '#f4d772' : (p.ovr >= 82 ? '#22e07a' : '#8b97a5');
+          return {
+            key: i,
+            name: p.name,
+            pos: POS_LABEL[p.pos] || p.pos,
+            ovr: p.ovr,
+            tierColor,
+            onPick: () => this.cqPickStolenPlayer(p),
+          };
+        });
+        out.cqStealTypedName = stm.typedName || '';
+        out.cqStealTypedPos = stm.typedPos || 'MEI';
+        out.cqStealTypedRating = stm.typedRating || 80;
+        out.onCqStealTypedName = e => this.cqSetStealField({ typedName: e.target.value });
+        out.onCqStealTypedPos = e => this.cqSetStealField({ typedPos: e.target.value });
+        out.onCqStealTypedRating = e => this.cqSetStealField({ typedRating: e.target.value });
+        out.onCqStealTypedConfirm = () => this.cqPickStolenTyped();
+      }
+
       // Teams the player has CONQUERED — their homeland is now owned by me but
       // keeps its original identity. Panel lists them with their own colour.
       const conquered = cq.territories
@@ -2646,6 +2774,11 @@ class Component extends DCLogic {
   }
   cqOpenAttack(defenderPos) {
     const c = this.state.conquest; if (!c || c.status !== 'playing') return;
+    // Rival match blocks everything else — force user to resolve it first
+    if (c.pendingRivalMatch) {
+      this.cqOpenRivalMatch();
+      return;
+    }
     if (!this.cqIsFrontier(defenderPos)) return;
     // Rival territory is locked until the rival is defeated in a duel
     if (this.cqIsRivalTerritory(defenderPos) && c.rival && !c.rival.defeated) {
@@ -2802,15 +2935,35 @@ class Component extends DCLogic {
         desc: 'Bônus por cumprir os 3 objetivos: cadastre um jogador roubado do time derrotado.',
         icon: '🎯', rating: 92, pos: 'STL', tier: 'gold-red',
         used: false, usedAt: null,
-        meta: { fromDefender: defenderTeamId }, // hint for the steal flow
+        meta: { fromDefender: defenderTeamId },
       });
     }
+
+    // ---- Patch 3: rival progress tracking --------------------------------
+    // Every conquest that isn't the rival himself pushes the rival counter up
+    // by one. When it reaches the goal, the app blocks further attacks until
+    // the user resolves a MANDATORY duel with the rival.
+    let newRival = c.rival;
+    let pendingRivalMatch = c.pendingRivalMatch || false;
+    let rivalTriggeredNow = false;
+    if (c.rival && !c.rival.defeated && oldOwner !== c.rival.teamId) {
+      const newProgress = (c.rival.progress || 0) + 1;
+      newRival = { ...c.rival, progress: newProgress };
+      if (newProgress >= (c.rival.progressGoal || 5) && !pendingRivalMatch) {
+        pendingRivalMatch = true;
+        rivalTriggeredNow = true;
+      }
+    }
+
     const teamName = this.teamName(oldOwner);
-    const newLog = [
+    const logs = [
       { msg: (bonusSteal ? '🏆✨ Vitória com objetivos! ' : '🏆 Vitória! ') + defender.areaName + ' (' + teamName + ') conquistado. +' + drawn.length + ' carta(s)' + (bonusSteal ? ' (incluindo roubo bônus)' : '') + '.', color: '#22e07a', ts: Date.now() },
-      ...c.log,
-    ].slice(0, 60);
-    const newState = { ...c, territories: newTerritories, cards: [...drawn, ...c.cards], log: newLog };
+    ];
+    if (rivalTriggeredNow) {
+      logs.push({ msg: '⚠️ Rival ' + this.teamName(newRival.teamId) + ' te desafiou! Enfrente-o agora para desbloquear o território dele.', color: '#e0454b', ts: Date.now() });
+    }
+    const newLog = [...logs, ...c.log].slice(0, 60);
+    const newState = { ...c, territories: newTerritories, cards: [...drawn, ...c.cards], log: newLog, rival: newRival, pendingRivalMatch };
     this.setState({ conquest: newState, cardReveal: { open: true, cards: drawn } }, () => this.cqCheckEnd());
   }
   cqColorForMe() {
@@ -2968,6 +3121,193 @@ class Component extends DCLogic {
   cqGiveUpGoldenGoal() {
     if (!confirm('Desistir do gol de ouro? O rival vai parar de tomar territórios, mas os já perdidos ficam com ele.')) return;
     this.cqEndGoldenGoal('gave_up');
+  }
+
+  // ---------- Patch 3: mandatory rival match + player theft --------------
+  // Opens the "duel with rival" modal. This modal supersedes normal attacks
+  // when cq.pendingRivalMatch === true.
+  cqOpenRivalMatch() {
+    const c = this.state.conquest;
+    if (!c || !c.rival || c.rival.defeated) return;
+    this.setState(s => ({
+      conquest: {
+        ...s.conquest,
+        rivalMatchModal: {
+          open: true,
+          homeScore: '',
+          awayScore: '',
+        },
+      },
+    }));
+  }
+  cqCloseRivalMatch() {
+    this.setState(s => ({
+      conquest: { ...s.conquest, rivalMatchModal: { open: false, homeScore: '', awayScore: '' } },
+    }));
+  }
+  cqSetRivalScore(patch) {
+    this.setState(s => {
+      const m = (s.conquest && s.conquest.rivalMatchModal) || { open: true, homeScore: '', awayScore: '' };
+      return { conquest: { ...s.conquest, rivalMatchModal: { ...m, ...patch } } };
+    });
+  }
+  // Confirms the score. If player won, opens the steal modal. If lost, applies
+  // the loss punishment (roster damage) and — since the rival is right there —
+  // also kicks off a golden-goal bleed.
+  cqConfirmRivalMatch() {
+    const c = this.state.conquest;
+    if (!c || !c.rival || !c.rivalMatchModal) return;
+    const hs = parseInt(c.rivalMatchModal.homeScore, 10);
+    const as = parseInt(c.rivalMatchModal.awayScore, 10);
+    if (isNaN(hs) || isNaN(as)) { alert('Preencha os dois placares.'); return; }
+    if (hs === as) { alert('Rival match não pode empatar. Nos pênaltis coloque o vencedor com +1 gol.'); return; }
+    const rivalTeamId = c.rival.teamId;
+    const rivalName = this.teamName(rivalTeamId);
+    const playerWon = hs > as;
+    if (playerWon) {
+      // Open steal step — user picks who to grab from the rival's real squad
+      const rivalTeam = (c.teams || []).find(t => t.id === rivalTeamId);
+      const catalogId = rivalTeam && rivalTeam.catalogId;
+      const catalogRoster = catalogId && typeof window !== 'undefined' && window.FC_TEAM_ROSTER
+        ? window.FC_TEAM_ROSTER(catalogId)
+        : [];
+      this.setState({
+        conquest: {
+          ...c,
+          rivalMatchModal: { open: false, homeScore: '', awayScore: '' },
+          stealModal: {
+            open: true,
+            rivalTeamId,
+            rivalName,
+            catalogRoster: catalogRoster || [],
+            typedName: '',
+            typedPos: 'MEI',
+            typedRating: 80,
+            matchScore: hs + '-' + as,
+          },
+          log: [{ msg: '⚔️ Você venceu o duelo contra ' + rivalName + ' por ' + hs + 'x' + as + '. Escolha o jogador a roubar.', color: '#22e07a', ts: Date.now() }, ...c.log].slice(0, 60),
+        },
+      });
+    } else {
+      // Loss: roster punishment + rival stays. Reset progress.
+      const newRival = { ...c.rival, progress: 0 };
+      this.setState({
+        conquest: {
+          ...c,
+          rivalMatchModal: { open: false, homeScore: '', awayScore: '' },
+          pendingRivalMatch: false,
+          rival: newRival,
+          log: [{ msg: '💥 Derrota no duelo contra ' + rivalName + ' (' + hs + 'x' + as + '). Punição aplicada, rival segue vivo.', color: '#e0454b', ts: Date.now() }, ...c.log].slice(0, 60),
+        },
+      }, () => {
+        // Trigger the golden-goal bleed as the punishment
+        this.cqStartGoldenGoal(rivalTeamId);
+        // Also lose a roster player (calls existing loss logic on any rival territory)
+        const rivalTerr = c.territories.find(t => t.ownerTeamId === rivalTeamId);
+        if (rivalTerr) {
+          const myRoster = c.rosters[c.myTeamId] || [];
+          if (myRoster.length > 1) {
+            const candidates = myRoster.filter(p => p.pos !== 'GOL');
+            const pool = candidates.length ? candidates : myRoster;
+            const lost = pool[Math.floor(Math.random() * pool.length)];
+            const newRosters = { ...c.rosters, [c.myTeamId]: myRoster.filter(p => p.id !== lost.id) };
+            this.setState(s => ({
+              conquest: {
+                ...s.conquest,
+                rosters: newRosters,
+                log: [{ msg: '💔 ' + lost.name + ' (' + lost.pos + ') perdido para o rival.', color: '#e0454b', ts: Date.now() }, ...s.conquest.log].slice(0, 60),
+              },
+            }));
+          }
+        }
+      });
+    }
+  }
+
+  // Steal-modal handlers
+  cqCloseSteal() {
+    this.setState(s => ({ conquest: { ...s.conquest, stealModal: { open: false } } }));
+  }
+  cqSetStealField(patch) {
+    this.setState(s => {
+      const m = (s.conquest && s.conquest.stealModal) || {};
+      return { conquest: { ...s.conquest, stealModal: { ...m, ...patch } } };
+    });
+  }
+  // Confirms the theft with a player from the catalog roster.
+  cqPickStolenPlayer(player) {
+    const c = this.state.conquest;
+    if (!c || !c.stealModal) return;
+    // Map catalog player shape to internal roster shape
+    const POS_MAP = { GK: 'GOL', DEF: 'ZAG', MID: 'MEI', ATA: 'ATA' };
+    const stolen = {
+      id: 'p_stolen_' + Math.random().toString(36).slice(2, 9),
+      name: player.name,
+      pos: POS_MAP[player.pos] || player.pos || 'MEI',
+      rating: player.ovr || player.rating || 80,
+    };
+    this.cqFinalizeRivalDefeat(stolen);
+  }
+  // Confirms the theft with a typed-in player (when rival isn't in the catalog).
+  cqPickStolenTyped() {
+    const c = this.state.conquest;
+    if (!c || !c.stealModal) return;
+    const m = c.stealModal;
+    const name = (m.typedName || '').trim();
+    const rating = parseInt(m.typedRating, 10);
+    if (!name) { alert('Digite o nome do jogador roubado.'); return; }
+    if (isNaN(rating) || rating < 40 || rating > 99) { alert('Overall deve ser um número entre 40 e 99.'); return; }
+    const stolen = {
+      id: 'p_stolen_' + Math.random().toString(36).slice(2, 9),
+      name,
+      pos: m.typedPos || 'MEI',
+      rating,
+    };
+    this.cqFinalizeRivalDefeat(stolen);
+  }
+
+  // Adds the stolen player to my roster, unlocks the rival territory, and
+  // picks a new rival from the surviving enemy teams. Closes both modals.
+  cqFinalizeRivalDefeat(stolenPlayer) {
+    const c = this.state.conquest;
+    if (!c || !c.rival) return;
+    const oldRivalId = c.rival.teamId;
+    const oldRivalName = this.teamName(oldRivalId);
+    const myRoster = c.rosters[c.myTeamId] || [];
+    const newRosters = { ...c.rosters, [c.myTeamId]: [...myRoster, stolenPlayer] };
+
+    // Pick a new rival from teams still holding at least one territory that
+    // aren't me and aren't the just-defeated rival.
+    const enemyTeamIds = new Set(
+      c.territories
+        .filter(t => t.ownerTeamId !== c.myTeamId && t.ownerTeamId !== oldRivalId)
+        .map(t => t.ownerTeamId)
+    );
+    const candidates = Array.from(enemyTeamIds);
+    let newRival = null;
+    if (candidates.length > 0) {
+      const pickedId = candidates[Math.floor(Math.random() * candidates.length)];
+      newRival = { teamId: pickedId, defeated: false, progress: 0, progressGoal: 5 };
+    }
+    const newRivalName = newRival ? this.teamName(newRival.teamId) : null;
+
+    const newLog = [
+      { msg: '🎯 ' + stolenPlayer.name + ' (' + stolenPlayer.pos + ' ' + stolenPlayer.rating + ') roubado de ' + oldRivalName + '!', color: '#f4d772', ts: Date.now() },
+      { msg: '🔓 Território de ' + oldRivalName + ' desbloqueado — agora pode ser atacado normalmente.', color: '#22e07a', ts: Date.now() },
+      newRival ? { msg: '🔥 Novo rival sorteado: ' + newRivalName + '.', color: '#e0454b', ts: Date.now() } : { msg: '🏁 Sem times rivais restantes.', color: '#8b97a5', ts: Date.now() },
+      ...c.log,
+    ].slice(0, 60);
+
+    this.setState({
+      conquest: {
+        ...c,
+        rosters: newRosters,
+        rival: newRival,
+        pendingRivalMatch: false,
+        stealModal: { open: false },
+        log: newLog,
+      },
+    });
   }
   cqColorForTeam(teamId) {
     const c = this.state.conquest;
